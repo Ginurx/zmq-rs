@@ -1,6 +1,12 @@
 extern crate libc;
 
 pub use ffi::{
+    zmq_msg_t,
+
+    zmq_errno,
+    zmq_strerror,
+    zmq_version,
+
     zmq_bind,
     zmq_close,
     zmq_connect,
@@ -11,7 +17,6 @@ pub use ffi::{
     zmq_ctx_term,
     zmq_curve_keypair,
     zmq_disconnect,
-    zmq_errno,
     zmq_getsockopt,
     zmq_has,
     zmq_msg_close,
@@ -39,9 +44,7 @@ pub use ffi::{
     zmq_setsockopt,
     zmq_socket,
     zmq_socket_monitor,
-    zmq_strerror,
     zmq_unbind,
-    zmq_version,
     zmq_z85_decode,
     zmq_z85_encode,
 };
