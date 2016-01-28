@@ -1,15 +1,22 @@
-//! Module: zmq
+#![allow(dead_code)]
 
 extern crate libc;
 extern crate zmq_sys;
 
 use std::ffi;
-use std::sync::atomic::{ AtomicBool, Ordering };
 use libc::{ c_int, c_void };
 
 pub const ZMQ_VERSION_MAJOR:i32 = 4;
 pub const ZMQ_VERSION_MINOR:i32 = 1;
 pub const ZMQ_VERSION_PATCH:i32 = 4;
+
+macro_rules! ret_while_null {
+    ($ptr: expr) => {{
+        if $ptr.is_null() {
+            return Err(Error::from_last_err());
+        }
+    }}
+}
 
 #[macro_export]
 macro_rules! ZMQ_MAKE_VERSION {
@@ -54,20 +61,6 @@ const ETERM: c_int = (ZMQ_HAUSNUMERO + 53);
 const EMTHREAD: c_int = (ZMQ_HAUSNUMERO + 54);
 */
 
-pub struct Error {
-    err_num: c_int,
-}
-
-impl Error {
-    fn from_last_err() -> Error {
-        let err_num = errno();
-
-        Error {
-            err_num: err_num
-        }
-    }
-}
-
 pub fn errno() -> c_int {
     unsafe {
         zmq_sys::zmq_errno()
@@ -93,12 +86,40 @@ pub fn version() -> (i32, i32, i32) {
     (major as i32, minor as i32, patch as i32)
 }
 
-macro_rules! ret_while_null {
-    ($ptr: expr) => {{
-        if $ptr.is_null() {
-            return Err(Error::from_last_err());
+#[derive(Clone)]
+pub struct Error {
+    err_num: c_int,
+    err_str: String,
+}
+
+impl Error {
+    fn from_last_err() -> Error {
+        let err_num = errno();
+        let err_str = strerror(err_num);
+
+        Error {
+            err_num: err_num,
+            err_str: err_str,
         }
-    }}
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{} (code {})", self.err_str, self.err_num)
+    }
+}
+
+impl std::fmt::Debug for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
+impl std::error::Error for Error {
+    fn description(&self) -> &str {
+        &self.err_str
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -173,6 +194,9 @@ impl Context {
         }
     }
 }
+
+unsafe impl Send for Context {}
+unsafe impl Sync for Context {}
 
 impl Drop for Context {
     fn drop(&mut self) {
