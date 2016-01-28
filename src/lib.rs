@@ -4,13 +4,16 @@ extern crate libc;
 extern crate zmq_sys;
 
 use std::ffi;
-use libc::{ c_int, c_void };
+use std::vec::Vec;
+use std::slice;
+use std::mem::transmute;
+use libc::{ c_int, c_void, size_t };
 
 pub const ZMQ_VERSION_MAJOR:i32 = 4;
 pub const ZMQ_VERSION_MINOR:i32 = 1;
 pub const ZMQ_VERSION_PATCH:i32 = 4;
 
-macro_rules! ret_while_null {
+macro_rules! ret_when_null {
     ($ptr: expr) => {{
         if $ptr.is_null() {
             return Err(Error::from_last_err());
@@ -139,7 +142,7 @@ pub enum ContextGetOption {
     ZMQ_IPV6 = 42,
 }
 
-struct Context {
+pub struct Context {
     ctx_ptr: *mut c_void,
 }
 
@@ -147,7 +150,7 @@ impl Context {
     /// void *zmq_ctx_new (void)
     pub fn new() -> Result<Context, Error> {
         let ctx_ptr = unsafe { zmq_sys::zmq_ctx_new() };
-        ret_while_null!(ctx_ptr);
+        ret_when_null!(ctx_ptr);
 
         Ok(Context {
             ctx_ptr: ctx_ptr,
@@ -204,14 +207,52 @@ impl Drop for Context {
     }
 }
 
-struct Message {
+const MSG_SIZE: usize = 64;
+
+pub struct Message {
     msg: zmq_sys::zmq_msg_t,
 }
 
+unsafe extern "C" fn zmq_free_fn(data: *mut c_void, hint: *mut c_void) {
+    let len = transmute(hint);
+    let slice = slice::from_raw_parts_mut(transmute::<*mut c_void, *mut u8>(data), len);
+    let _: Box<[u8]> = Box::from_raw(slice);
+}
+
 impl Message {
+    /// zmq_msg_init
     pub fn new() -> Result<Message, Error> {
-        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; 64] };
+        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
         let rc = unsafe { zmq_sys::zmq_msg_init(&mut msg) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(Message { msg: msg })
+        }
+    }
+
+    /// zmq_msg_init_size
+    pub fn with_capcity(len: usize) -> Result<Message, Error> {
+        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
+        let rc = unsafe { zmq_sys::zmq_msg_init_size(&mut msg, len as size_t) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(Message { msg: msg })
+        }
+    }
+
+    /// zmq_msg_init_data
+    pub fn from_vec(vec: Vec<u8>) -> Result<Message, Error> {
+        let len = vec.len() as size_t;
+        let data = vec.into_boxed_slice();
+        let free_fn = unsafe { transmute(zmq_free_fn) };
+
+        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
+        let rc = unsafe {
+            zmq_sys::zmq_msg_init_data(&mut msg, Box::into_raw(data) as *mut c_void, len,
+                free_fn, transmute(len))
+            };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
