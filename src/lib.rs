@@ -156,8 +156,8 @@ impl Context {
 
     /// int zmq_ctx_term (void *context)
     fn term(&mut self) -> Option<Error> {        // trasnfer owner
-        let ret_val = unsafe { zmq_sys::zmq_ctx_term(self.ctx_ptr) };
-        if ret_val == -1 {
+        let rc = unsafe { zmq_sys::zmq_ctx_term(self.ctx_ptr) };
+        if rc == -1 {
             Some(Error::from_last_err())
         } else {
             None
@@ -166,8 +166,8 @@ impl Context {
 
     /// int zmq_ctx_shutdown (void *ctx_)
     pub fn shutdown(&self) -> Option<Error> {
-        let ret_val = unsafe { zmq_sys::zmq_ctx_shutdown(self.ctx_ptr) };
-        if ret_val == -1 {
+        let rc = unsafe { zmq_sys::zmq_ctx_shutdown(self.ctx_ptr) };
+        if rc == -1 {
             Some(Error::from_last_err())
         } else {
             None
@@ -175,9 +175,9 @@ impl Context {
     }
 
     /// int zmq_ctx_set (void *context, int option, int optval)
-    pub fn set(&self, option_name: ContextSetOption, option_value: c_int) -> Option<Error> {
-        let ret_val = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr, option_name as c_int, option_value) };
-        if ret_val == -1 {
+    pub fn set_option(&self, option_name: ContextSetOption, option_value: c_int) -> Option<Error> {
+        let rc = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr, option_name as c_int, option_value) };
+        if rc == -1 {
             Some(Error::from_last_err())
         } else {
             None
@@ -185,12 +185,12 @@ impl Context {
     }
 
     /// int zmq_ctx_get (void *context, int option)
-    pub fn get(&self, option_name: ContextGetOption) -> Result<c_int, Error> {
-        let ret_val = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, option_name as c_int) };
-        if ret_val == -1 {
+    pub fn get_option(&self, option_name: ContextGetOption) -> Result<c_int, Error> {
+        let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, option_name as c_int) };
+        if rc == -1 {
             Err(Error::from_last_err())
         } else {
-            Ok(ret_val)
+            Ok(rc)
         }
     }
 }
@@ -201,5 +201,30 @@ unsafe impl Sync for Context {}
 impl Drop for Context {
     fn drop(&mut self) {
         self.term().unwrap();
+    }
+}
+
+struct Message {
+    msg: zmq_sys::zmq_msg_t,
+}
+
+impl Message {
+    pub fn new() -> Result<Message, Error> {
+        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; 64] };
+        let rc = unsafe { zmq_sys::zmq_msg_init(&mut msg) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(Message { msg: msg })
+        }
+    }
+}
+
+impl Drop for Message {
+    fn drop(&mut self) {
+        let rc = unsafe { zmq_sys::zmq_msg_close(&mut self.msg) };
+        if rc != 0 {
+            panic!(Error::from_last_err());
+        }
     }
 }
