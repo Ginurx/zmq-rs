@@ -64,19 +64,24 @@ const ETERM: c_int = (ZMQ_HAUSNUMERO + 53);
 const EMTHREAD: c_int = (ZMQ_HAUSNUMERO + 54);
 */
 
-pub fn errno() -> c_int {
+fn errno() -> c_int {
     unsafe {
         zmq_sys::zmq_errno()
     }
 }
 
-pub fn strerror(errnum: c_int) -> String {
+fn strerror(errnum: c_int) -> String {
     unsafe {
         let s = zmq_sys::zmq_strerror(errnum);
         ffi::CStr::from_ptr(s).to_str().unwrap().to_string()
     }
 }
 
+/// Report 0MQ library version
+///
+/// Binding of `void zmq_version (int *major, int *minor, int *patch)`
+///
+/// The function will return tuple of major, minor and patch of the ØMQ library version.
 pub fn version() -> (i32, i32, i32) {
     let mut major = 0;
     let mut minor = 0;
@@ -147,18 +152,27 @@ pub struct Context {
 }
 
 impl Context {
-    /// void *zmq_ctx_new (void)
+    /// Create new 0MQ context
+    ///
+    /// Binding of `void *zmq_ctx_new ();`
+    ///
+    /// The function creates a new ØMQ context.
+    /// # Thread safety
+    /// A ØMQ context is thread safe and may be shared among as many application threads as necessary,
+    /// without any additional locking required on the part of the caller.
     pub fn new() -> Result<Context, Error> {
         let ctx_ptr = unsafe { zmq_sys::zmq_ctx_new() };
         ret_when_null!(ctx_ptr);
-
         Ok(Context {
             ctx_ptr: ctx_ptr,
         })
     }
 
-    /// int zmq_ctx_term (void *context)
-    fn term(&mut self) -> Option<Error> {        // trasnfer owner
+    /// Destroy a 0MQ context
+    ///
+    /// Binding of `int zmq_ctx_term (void *context);`
+    /// This function will be called automatically when context goes out of scope
+    fn term(&mut self) -> Option<Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_term(self.ctx_ptr) };
         if rc == -1 {
             Some(Error::from_last_err())
@@ -167,7 +181,13 @@ impl Context {
         }
     }
 
-    /// int zmq_ctx_shutdown (void *ctx_)
+    /// Shutdown a 0MQ context
+    ///
+    /// Binding of `int zmq_ctx_shutdown (void *context);`
+    ///
+    /// The function will shutdown the ØMQ context context.
+    /// Context shutdown will cause any blocking operations currently in progress on sockets open within context to return immediately with an error code of ETERM.
+    /// With the exception of Socket::Close(), any further operations on sockets open within context will fail with an error code of ETERM.
     pub fn shutdown(&self) -> Option<Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_shutdown(self.ctx_ptr) };
         if rc == -1 {
@@ -177,7 +197,11 @@ impl Context {
         }
     }
 
-    /// int zmq_ctx_set (void *context, int option, int optval)
+    /// Set context options
+    ///
+    /// Bindnig of `int zmq_ctx_set (void *context, int option_name, int option_value);`
+    ///
+    /// The function will set the option specified by the option_name argument to the value of the option_value argument.
     pub fn set_option(&self, option_name: ContextSetOption, option_value: c_int) -> Option<Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr, option_name as c_int, option_value) };
         if rc == -1 {
@@ -187,7 +211,11 @@ impl Context {
         }
     }
 
-    /// int zmq_ctx_get (void *context, int option)
+    /// Get context options
+    ///
+    /// Binding of `int zmq_ctx_get (void *context, int option_name);`
+    ///
+    /// The function will return the option specified by the option_name argument.
     pub fn get_option(&self, option_name: ContextGetOption) -> Result<c_int, Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, option_name as c_int) };
         if rc == -1 {
@@ -195,6 +223,20 @@ impl Context {
         } else {
             Ok(rc)
         }
+    }
+
+    /// Create 0MQ socket
+    ///
+    /// Binding of `void *zmq_socket (void *context, int type);`
+    ///
+    /// The type argument specifies the socket type, which determines the semantics of communication over the socket.
+    /// The newly created socket is initially unbound, and not associated with any endpoints.
+    /// In order to establish a message flow a socket must first be connected to at least one endpoint with Scoket::Connect,
+    /// or at least one endpoint must be created for accepting incoming connections with Socket::Bind().
+    pub fn new_socket(&self, t: SocketType) -> Result<Socket, Error> {
+        let socket_ptr = unsafe { zmq_sys::zmq_socket(self.ctx_ptr, t as c_int) };
+        ret_when_null!(socket_ptr);
+        Ok(Socket { socket_ptr: socket_ptr })
     }
 }
 
@@ -220,7 +262,12 @@ unsafe extern "C" fn zmq_free_fn(data: *mut c_void, hint: *mut c_void) {
 }
 
 impl Message {
-    /// zmq_msg_init
+    /// initialise empty 0MQ message.
+    ///
+    /// Binding of `int zmq_msg_init (zmq_msg_t *msg);`.
+    ///
+    /// The function will return a message object to represent an empty message.
+    /// This function is most useful when called before receiving a message.
     pub fn new() -> Result<Message, Error> {
         let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
         let rc = unsafe { zmq_sys::zmq_msg_init(&mut msg) };
@@ -231,7 +278,12 @@ impl Message {
         }
     }
 
-    /// zmq_msg_init_size
+    ///  Initialise 0MQ message of a specified size.
+    ///
+    /// Binding of `int zmq_msg_init_size (zmq_msg_t *msg, size_t size);`.
+    ///
+    /// The function will allocate any resources required to store a message size bytes long and
+    /// return a message object to represent the newly allocated message.
     pub fn with_capcity(len: usize) -> Result<Message, Error> {
         let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
         let rc = unsafe { zmq_sys::zmq_msg_init_size(&mut msg, len as size_t) };
@@ -242,7 +294,15 @@ impl Message {
         }
     }
 
-    /// zmq_msg_init_data
+    /// Initialise 0MQ message from a supplied std::vec::Vec<u8>.
+    ///
+    /// Binding of `int zmq_msg_init_data (zmq_msg_t *msg, void *data,
+    ///    size_t size, zmq_free_fn *ffn, void *hint);`.
+    ///
+    /// The function will take ownership of the Vec and
+    /// return a message object to represent the content referenced by the Vec.
+    ///
+    /// No copy of data will be performed.
     pub fn from_vec(vec: Vec<u8>) -> Result<Message, Error> {
         let len = vec.len() as size_t;
         let data = vec.into_boxed_slice();
@@ -259,6 +319,52 @@ impl Message {
             Ok(Message { msg: msg })
         }
     }
+
+    /// Move content of a message to another message.
+    ///
+    /// Binding of `int zmq_msg_move (zmq_msg_t *dest, zmq_msg_t *src);`.
+    ///
+    /// Move the content of the message object referenced by src to the message object referenced by dest.
+    /// No actual copying of message content is performed,
+    /// dest is simply updated to reference the new content.
+    /// src becomes an empty message after calling Message::msg_move().
+    /// The original content of dest, if any, will be released
+    pub fn msg_move(dest: &mut Message, src: &mut Message) -> Option<Error> {
+        let rc = unsafe {
+            zmq_sys::zmq_msg_move(&mut dest.msg, &mut src.msg)
+        };
+        if rc == -1 {
+            Some(Error::from_last_err())
+        } else {
+            None
+        }
+    }
+
+    /// Copy content of a message to another message.
+    ///
+    /// Binding of `int zmq_msg_copy (zmq_msg_t *dest, zmq_msg_t *src);`.
+    ///
+    /// Copy the message object referenced by src to the message object referenced by dest.
+    /// The original content of dest, if any, will be released.
+    pub fn msg_copy(dest: &mut Message, src: &Message) -> Option<Error> {
+        let rc = unsafe {
+            zmq_sys::zmq_msg_copy(&mut dest.msg, transmute(&src.msg))
+        };
+        if rc == -1 {
+            Some(Error::from_last_err())
+        } else {
+            None
+        }
+    }
+
+    /// Retrieve pointer to message content.
+    ///
+    /// Binding of `void *zmq_msg_data (zmq_msg_t *msg);`.
+    ///
+    /// The function will return a pointer to the message content.
+    pub unsafe fn get_data_pointer(&mut self) -> *mut c_void {
+        zmq_sys::zmq_msg_data(&mut self.msg)
+    }
 }
 
 impl Drop for Message {
@@ -268,4 +374,130 @@ impl Drop for Message {
             panic!(Error::from_last_err());
         }
     }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum SocketType {
+    PAIR        = 0,
+    PUB         = 1,
+    SUB         = 2,
+    REQ         = 3,
+    REP         = 4,
+    DEALER      = 5,
+    ROUTER      = 6,
+    PULL        = 7,
+    PUSH        = 8,
+    XPUB        = 9,
+    XSUB        = 10,
+    ZMQ_STREAM  = 11,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum SocketOption {
+    AFFINITY = 4,
+    IDENTITY = 5,
+    SUBSCRIBE = 6,
+    UNSUBSCRIBE = 7,
+    RATE = 8,
+    RECOVERY_IVL = 9,
+    SNDBUF = 11,
+    RCVBUF = 12,
+    RCVMORE = 13,
+    FD = 14,
+    EVENTS = 15,
+    TYPE = 16,
+    LINGER = 17,
+    RECONNECT_IVL = 18,
+    BACKLOG = 19,
+    RECONNECT_IVL_MAX = 21,
+    MAXMSGSIZE = 22,
+    SNDHWM = 23,
+    RCVHWM = 24,
+    MULTICAST_HOPS = 25,
+    RCVTIMEO = 27,
+    SNDTIMEO = 28,
+    LAST_ENDPOINT = 32,
+    ROUTER_MANDATORY = 33,
+    TCP_KEEPALIVE = 34,
+    TCP_KEEPALIVE_CNT = 35,
+    TCP_KEEPALIVE_IDLE = 36,
+    TCP_KEEPALIVE_INTVL = 37,
+    IMMEDIATE = 39,
+    XPUB_VERBOSE = 40,
+    ROUTER_RAW = 41,
+    IPV6 = 42,
+    MECHANISM = 43,
+    PLAIN_SERVER = 44,
+    PLAIN_USERNAME = 45,
+    PLAIN_PASSWORD = 46,
+    CURVE_SERVER = 47,
+    CURVE_PUBLICKEY = 48,
+    CURVE_SECRETKEY = 49,
+    CURVE_SERVERKEY = 50,
+    PROBE_ROUTER = 51,
+    REQ_CORRELATE = 52,
+    REQ_RELAXED = 53,
+    CONFLATE = 54,
+    ZAP_DOMAIN = 55,
+    ROUTER_HANDOVER = 56,
+    TOS = 57,
+    CONNECT_RID = 61,
+    GSSAPI_SERVER = 62,
+    GSSAPI_PRINCIPAL = 63,
+    GSSAPI_SERVICE_PRINCIPAL = 64,
+    GSSAPI_PLAINTEXT = 65,
+    HANDSHAKE_IVL = 66,
+    SOCKS_PROXY = 68,
+    XPUB_NODROP = 69,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum MessageOption {
+    MORE        = 1,
+    SRCFD       = 2,
+    SHARED      = 3,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum SendRecvOption {
+    DONTWAIT    = 1,
+    SNDMORE     = 2,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum SecurityMechanism {
+    ZMQ_NULL    = 0,
+    ZMQ_PLAIN   = 1,
+    ZMQ_CURVE   = 2,
+    ZMQ_GSSAPI  = 3,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum SocketEvent {
+    CONNECTED         = 0x0001,
+    CONNECT_DELAYED   = 0x0002,
+    CONNECT_RETRIED   = 0x0004,
+    LISTENING         = 0x0008,
+    BIND_FAILED       = 0x0010,
+    ACCEPTED          = 0x0020,
+    ACCEPT_FAILED     = 0x0040,
+    CLOSED            = 0x0080,
+    CLOSE_FAILED      = 0x0100,
+    DISCONNECTED      = 0x0200,
+    MONITOR_STOPPED   = 0x0400,
+    ALL               = 0xFFFF,
+}
+
+pub struct Socket {
+    socket_ptr: *mut c_void,
+}
+
+impl Socket {
+
 }
