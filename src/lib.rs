@@ -233,7 +233,7 @@ impl Context {
     /// The newly created socket is initially unbound, and not associated with any endpoints.
     /// In order to establish a message flow a socket must first be connected to at least one endpoint with Scoket::Connect,
     /// or at least one endpoint must be created for accepting incoming connections with Socket::Bind().
-    pub fn new_socket(&self, t: SocketType) -> Result<Socket, Error> {
+    pub fn socket(&self, t: SocketType) -> Result<Socket, Error> {
         let socket_ptr = unsafe { zmq_sys::zmq_socket(self.ctx_ptr, t as c_int) };
         ret_when_null!(socket_ptr);
         Ok(Socket { socket_ptr: socket_ptr })
@@ -365,6 +365,66 @@ impl Message {
     pub unsafe fn get_data_pointer(&mut self) -> *mut c_void {
         zmq_sys::zmq_msg_data(&mut self.msg)
     }
+
+    /// Retrieve message content size in bytes
+    ///
+    /// Binding of `size_t zmq_msg_size (zmq_msg_t *msg);`
+    ///
+    /// The function will return the size in bytes of the content of the message.
+    pub fn len(&self) -> usize {
+        unsafe { zmq_sys::zmq_msg_size(transmute(&self.msg)) }
+    }
+
+    ///  Indicate if there are more message parts to receive
+    ///
+    /// Binding of `int zmq_msg_more (zmq_msg_t *message);`
+    ///
+    /// The function indicates whether this is part of a multi-part message, and there are further parts to receive.
+    /// This method is identical to xxxxx with an argument of ZMQ_MORE.
+    pub fn has_more(&self) -> bool {
+        unsafe { zmq_sys::zmq_msg_more(transmute(&self.msg)) > 0 }
+    }
+
+    /// Get message property
+    ///
+    /// Binding of `int zmq_msg_get (zmq_msg_t *message, int property);`
+    ///
+    /// The function will return the value for the property specified by the property argument.
+    pub fn get_property(&self, property: MessageProperty) -> Result<i32, Error> {
+        let rc = unsafe { zmq_sys::zmq_msg_get(transmute(&self.msg), property as c_int) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else  {
+            Ok(rc)
+        }
+    }
+
+    // zmq_msg_set is not used this while
+    // pub fn set_property(&mut self, property: c_int, optval: i32) -> Option<Error> { }
+
+    /// Get message metadata property
+    ///
+    /// Binding of `const char *zmq_msg_gets (zmq_msg_t *message, const char *property);`
+    ///
+    /// The function will return the string value for the metadata property specified by the property argument.
+    /// Metadata is defined on a per-connection basis during the ZeroMQ connection handshake as specified in <rfc.zeromq.org/spec:37>.
+    /// The following ZMTP properties can be retrieved with the function:
+    /// `Socket-Type`
+    /// `Identity`
+    /// `Resource`
+    /// Additionally, when available for the underlying transport,
+    /// the Peer-Address property will return the IP address of the remote endpoint as returned by getnameinfo(2).
+    /// Other properties may be defined based on the underlying security mechanism.
+    pub fn get_meta<'a>(&'a self, property: &str) -> Option<&'a str> {
+        let prop_cstr = ffi::CString::new(property).unwrap();
+
+        let returned_str_ptr = unsafe { zmq_sys::zmq_msg_gets(transmute(&self.msg), transmute(prop_cstr.as_ptr())) };
+        if returned_str_ptr.is_null() {
+            None
+        } else {
+            unsafe { Some(ffi::CStr::from_ptr(returned_str_ptr).to_str().unwrap()) }
+        }
+    }
 }
 
 impl Drop for Message {
@@ -455,7 +515,7 @@ pub enum SocketOption {
 
 #[allow(non_camel_case_types)]
 #[derive(Clone, Debug)]
-pub enum MessageOption {
+pub enum MessageProperty {
     MORE        = 1,
     SRCFD       = 2,
     SHARED      = 3,
