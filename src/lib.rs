@@ -234,9 +234,9 @@ impl Context {
     /// In order to establish a message flow a socket must first be connected to at least one endpoint with Scoket::Connect,
     /// or at least one endpoint must be created for accepting incoming connections with Socket::Bind().
     pub fn socket(&self, t: SocketType) -> Result<Socket, Error> {
-        let socket_ptr = unsafe { zmq_sys::zmq_socket(self.ctx_ptr, t as c_int) };
-        ret_when_null!(socket_ptr);
-        Ok(Socket { socket_ptr: socket_ptr })
+        let socket = unsafe { zmq_sys::zmq_socket(self.ctx_ptr, t as c_int) };
+        ret_when_null!(socket);
+        Ok(Socket { socket: socket })
     }
 }
 
@@ -555,9 +555,35 @@ pub enum SocketEvent {
 }
 
 pub struct Socket {
-    socket_ptr: *mut c_void,
+    socket: *mut c_void,
 }
 
 impl Socket {
+    /// Close 0MQ socket
+    ///
+    /// Binding of `int zmq_close (void *s);`
+    ///
+    /// It's not mandatory to call this function since socket can be closed automatically on dropping
+    /// The function will destroy this socket.
+    /// Any outstanding messages physically received from the network
+    /// but not yet received by the application with recv() shall be discarded.
+    /// The behaviour for discarding messages sent by the application with send()
+    /// but not yet physically transferred to the network depends on the value of
+    /// the ZMQ_LINGER socket option for the specified socket.
+    pub fn close(self) {
+        drop(self)
+    }
 
+    fn close_underly(&mut self) {
+        let rc = unsafe { zmq_sys::zmq_close(self.socket) };
+        if rc == -1 {
+            panic!(Error::from_last_err());
+        }
+    }
+}
+
+impl Drop for Socket {
+    fn drop(&mut self) {
+        self.close_underly()
+    }
 }
