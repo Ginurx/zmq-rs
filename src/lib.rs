@@ -3,6 +3,7 @@
 extern crate libc;
 extern crate zmq_sys;
 
+use std::ops::{ Deref, DerefMut };
 use std::ffi;
 use std::vec::Vec;
 use std::slice;
@@ -172,12 +173,12 @@ impl Context {
     ///
     /// Binding of `int zmq_ctx_term (void *context);`
     /// This function will be called automatically when context goes out of scope
-    fn term(&mut self) -> Option<Error> {
+    fn term(&mut self) -> Result<(), Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_term(self.ctx_ptr) };
         if rc == -1 {
-            Some(Error::from_last_err())
+            Err(Error::from_last_err())
         } else {
-            None
+            Ok(())
         }
     }
 
@@ -188,12 +189,12 @@ impl Context {
     /// The function will shutdown the ØMQ context context.
     /// Context shutdown will cause any blocking operations currently in progress on sockets open within context to return immediately with an error code of ETERM.
     /// With the exception of Socket::Close(), any further operations on sockets open within context will fail with an error code of ETERM.
-    pub fn shutdown(&self) -> Option<Error> {
+    pub fn shutdown(&mut self) -> Result<(), Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_shutdown(self.ctx_ptr) };
         if rc == -1 {
-            Some(Error::from_last_err())
+            Err(Error::from_last_err())
         } else {
-            None
+            Ok(())
         }
     }
 
@@ -202,12 +203,12 @@ impl Context {
     /// Bindnig of `int zmq_ctx_set (void *context, int option_name, int option_value);`
     ///
     /// The function will set the option specified by the option_name argument to the value of the option_value argument.
-    pub fn set_option(&self, option_name: ContextSetOption, option_value: c_int) -> Option<Error> {
+    pub fn set_option(&self, option_name: ContextSetOption, option_value: c_int) -> Result<(), Error> {
         let rc = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr, option_name as c_int, option_value) };
         if rc == -1 {
-            Some(Error::from_last_err())
+            Err(Error::from_last_err())
         } else {
-            None
+            Ok(())
         }
     }
 
@@ -320,6 +321,14 @@ impl Message {
         }
     }
 
+    pub fn from_slice(data: &[u8]) -> Result<Message, Error> {
+        unsafe {
+            let mut msg = try!(Message::with_capcity(data.len()));
+            std::ptr::copy_nonoverlapping(data.as_ptr(), msg.as_mut_ptr(), data.len());
+            Ok(msg)
+        }
+    }
+
     /// Move content of a message to another message.
     ///
     /// Binding of `int zmq_msg_move (zmq_msg_t *dest, zmq_msg_t *src);`.
@@ -329,14 +338,14 @@ impl Message {
     /// dest is simply updated to reference the new content.
     /// src becomes an empty message after calling Message::msg_move().
     /// The original content of dest, if any, will be released
-    pub fn msg_move(dest: &mut Message, src: &mut Message) -> Option<Error> {
+    pub fn msg_move(dest: &mut Message, src: &mut Message) -> Result<(), Error> {
         let rc = unsafe {
             zmq_sys::zmq_msg_move(&mut dest.msg, &mut src.msg)
         };
         if rc == -1 {
-            Some(Error::from_last_err())
+            Err(Error::from_last_err())
         } else {
-            None
+            Ok(())
         }
     }
 
@@ -346,14 +355,14 @@ impl Message {
     ///
     /// Copy the message object referenced by src to the message object referenced by dest.
     /// The original content of dest, if any, will be released.
-    pub fn msg_copy(dest: &mut Message, src: &Message) -> Option<Error> {
+    pub fn msg_copy(dest: &mut Message, src: &Message) -> Result<(), Error> {
         let rc = unsafe {
             zmq_sys::zmq_msg_copy(&mut dest.msg, transmute(&src.msg))
         };
         if rc == -1 {
-            Some(Error::from_last_err())
+            Err(Error::from_last_err())
         } else {
-            None
+            Ok(())
         }
     }
 
@@ -362,8 +371,17 @@ impl Message {
     /// Binding of `void *zmq_msg_data (zmq_msg_t *msg);`.
     ///
     /// The function will return a pointer to the message content.
-    pub unsafe fn get_data_pointer(&mut self) -> *mut c_void {
+    pub unsafe fn get_data_ptr(&mut self) -> *mut c_void {
         zmq_sys::zmq_msg_data(&mut self.msg)
+    }
+
+    /// Retrieve pointer to message content.
+    ///
+    /// Binding of `void *zmq_msg_data (zmq_msg_t *msg);`.
+    ///
+    /// The function will return a pointer to the message content.
+    pub unsafe fn get_const_data_ptr(&self) -> *const c_void {
+        zmq_sys::zmq_msg_data(transmute(&self.msg))
     }
 
     /// Retrieve message content size in bytes
@@ -400,7 +418,7 @@ impl Message {
     }
 
     // zmq_msg_set is not used this while
-    // pub fn set_property(&mut self, property: c_int, optval: i32) -> Option<Error> { }
+    // pub fn set_property(&mut self, property: c_int, optval: i32) -> Result<(), Error> { }
 
     /// Get message metadata property
     ///
@@ -427,6 +445,28 @@ impl Message {
     }
 }
 
+impl Deref for Message {
+    type Target = [u8];
+
+    fn deref<'a>(&'a self) -> &'a [u8] {
+        unsafe {
+            let ptr = self.get_const_data_ptr();
+            let len = self.len() as usize;
+            slice::from_raw_parts(transmute(ptr), len)
+        }
+    }
+}
+
+impl DerefMut for Message {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut [u8] {
+        unsafe {
+            let ptr = self.get_data_ptr();
+            let len = self.len() as usize;
+            slice::from_raw_parts_mut(transmute(ptr), len)
+        }
+    }
+}
+
 impl Drop for Message {
     fn drop(&mut self) {
         let rc = unsafe { zmq_sys::zmq_msg_close(&mut self.msg) };
@@ -437,7 +477,6 @@ impl Drop for Message {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
 pub enum SocketType {
     PAIR        = 0,
     PUB         = 1,
@@ -453,9 +492,10 @@ pub enum SocketType {
     ZMQ_STREAM  = 11,
 }
 
+
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
-pub enum SocketOption {
+#[derive(Copy, Clone, Debug)]
+enum SocketOption {
     AFFINITY = 4,
     IDENTITY = 5,
     SUBSCRIBE = 6,
@@ -514,7 +554,7 @@ pub enum SocketOption {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum MessageProperty {
     MORE        = 1,
     SRCFD       = 2,
@@ -522,14 +562,33 @@ pub enum MessageProperty {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
-pub enum SendRecvOption {
-    DONTWAIT    = 1,
-    SNDMORE     = 2,
+#[derive(Copy, Clone, Debug)]
+pub enum SocketFlag {
+    DONTWAIT,//    = 1,
+    SNDMORE,//     = 2,
+    COMBINED(i32),
+}
+
+impl SocketFlag {
+    pub fn into_raw(&self) -> i32 {
+        match *self {
+            SocketFlag::DONTWAIT => 1,
+            SocketFlag::SNDMORE => 2,
+            SocketFlag::COMBINED(i) => i,
+        }
+    }
+}
+
+impl std::ops::BitOr for SocketFlag {
+    type Output = SocketFlag;
+
+    fn bitor(self, rhs: SocketFlag) -> SocketFlag {
+        SocketFlag::COMBINED(self.into_raw() | rhs.into_raw())
+    }
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum SecurityMechanism {
     ZMQ_NULL    = 0,
     ZMQ_PLAIN   = 1,
@@ -538,7 +597,7 @@ pub enum SecurityMechanism {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum SocketEvent {
     CONNECTED         = 0x0001,
     CONNECT_DELAYED   = 0x0002,
@@ -558,6 +617,7 @@ pub struct Socket {
     socket: *mut c_void,
 }
 
+// todo: zmq_msg_send, zmq_msg_recv
 impl Socket {
     /// Close 0MQ socket
     ///
@@ -580,10 +640,213 @@ impl Socket {
             panic!(Error::from_last_err());
         }
     }
+
+    ///  Accept incoming connections on a socket
+    ///
+    /// Binding of `int zmq_bind (void *socket, const char *endpoint);`
+    ///
+    /// The function binds the socket to a local endpoint and then accepts incoming connections on that endpoint.
+    pub fn bind(&mut self, endpoint: &str) -> Result<(), Error> {
+        let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
+        let rc = unsafe { zmq_sys::zmq_bind(self.socket, endpoint_cstr.as_ptr()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Create outgoing connection from socket
+    ///
+    /// Binding of `int zmq_connect (void *socket, const char *endpoint);`
+    ///
+    /// The function connects the socket to an endpoint and then accepts incoming connections on that endpoint.
+    pub fn connect(&mut self, endpoint: &str) -> Result<(), Error> {
+        let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
+        let rc = unsafe { zmq_sys::zmq_connect(self.socket, endpoint_cstr.as_ptr()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Stop accepting connections on a socket
+    ///
+    /// Binding of `int zmq_unbind (void *socket, const char *endpoint);`
+    ///
+    /// The function will unbind a socket specified by the socket argument from the endpoint specified by the endpoint argument.
+    pub fn unbind(&mut self, endpoint: &str) -> Result<(), Error> {
+        let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
+        let rc = unsafe { zmq_sys::zmq_unbind(self.socket, endpoint_cstr.as_ptr()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Disconnect a socket
+    ///
+    /// Binding of `int zmq_disconnect (void *socket, const char *endpoint);`
+    ///
+    /// The function will disconnect socket from the endpoint specified by the endpoint argument.
+    /// Any outstanding messages physically received from the network but not yet received by the application with recv() will be discarded.
+    /// The behaviour for discarding messages sent by the application with send() but
+    /// not yet physically transferred to the network depends on the value of the ZMQ_LINGER socket option for the socket.
+    pub fn disconnect(&mut self, endpoint: &str) -> Result<(), Error> {
+        let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
+        let rc = unsafe { zmq_sys::zmq_disconnect(self.socket, endpoint_cstr.as_ptr()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Send a message part on a socket
+    ///
+    /// Binding of `int zmq_msg_send (zmq_msg_t *msg, void *socket, int flags);`
+    pub fn send_msg(&mut self, mut msg: Message, flags: SocketFlag) -> Result<i32, Error> {
+        let rc = unsafe { zmq_sys::zmq_msg_send(&mut msg.msg, self.socket, flags.into_raw() as c_int) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(rc)
+        }
+    }
+
+    /// Receive a message part from a socket
+    ///
+    /// Binding of `int zmq_msg_recv (zmq_msg_t *msg, void *socket, int flags);`
+    pub fn recv_into_msg(&mut self, msg: &mut Message, flags: SocketFlag) -> Result<i32, Error> {
+        let rc = unsafe { zmq_sys::zmq_msg_recv(&mut msg.msg, self.socket, flags.into_raw() as c_int) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(rc)
+        }
+    }
+
+    /// Receive a message part from a socket
+    ///
+    /// Binding of `int zmq_msg_recv (zmq_msg_t *msg, void *socket, int flags);`
+    pub fn recv_msg(&mut self, flags: SocketFlag) -> Result<Message, Error> {
+        let mut msg = try!(Message::new());
+        match self.recv_into_msg(&mut msg, flags) {
+            Ok(_) => Ok(msg),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Send bytes on a socket
+    ///
+    /// Data will be copied into a Message object in order to be sent.
+    pub fn send_bytes(&mut self, data: &[u8], flags: SocketFlag) -> Result<i32, Error> {
+        let msg = try!(Message::from_slice(data));
+        self.send_msg(msg, flags)
+    }
+
+    /// Send a constant-memory message part on a socket
+    ///
+    /// Binding of `ZMQ_EXPORT int zmq_send_const (void *s, const void *buf, size_t len, int flags);`
+    ///
+    /// The message buffer is assumed to be constant-memory(static) and will therefore not be copied or deallocated in any way
+    pub fn send_const_bytes(&mut self, data: &'static [u8], flags: SocketFlag) -> Result<i32, Error> {
+        let rc = unsafe { zmq_sys::zmq_send_const(self.socket, transmute(data.as_ptr()), data.len(), flags.into_raw()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(rc)
+        }
+    }
+
+    /// Monitor socket events
+    ///
+    /// Binding of `int zmq_socket_monitor (void *socket, char *endpoint, int events);`
+    ///
+    /// The method lets an application thread track socket events (like connects) on a ZeroMQ socket
+    pub fn socket_monitor(&mut self, endpoint: &str, events: &Vec<SocketEvent>) -> Result<(), Error> {
+        let mut event_mask: i32 = 0;
+        for event in events {
+            event_mask |= Clone::clone(event) as i32;
+        }
+
+        let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
+        let rc = unsafe { zmq_sys::zmq_socket_monitor(self.socket, endpoint_cstr.as_ptr(), event_mask) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Start built-in 0MQ proxy
+    ///
+    /// Binding of `int zmq_proxy (const void *frontend, const void *backend, const void *capture);`
+    ///
+    /// The function starts the built-in ØMQ proxy in the current application thread.
+    pub fn run_proxy(frontend: &mut Socket, backend: &mut Socket) -> Result<(), Error> {
+        let rc = unsafe { zmq_sys::zmq_proxy(frontend.socket, backend.socket, std::ptr::null_mut()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Start built-in 0MQ proxy
+    ///
+    /// Binding of `int zmq_proxy (const void *frontend, const void *backend, const void *capture);` or
+    /// `int zmq_proxy_steerable (const void *frontend, const void *backend, const void *capture, const void *control);`
+    ///
+    /// The function starts the built-in ØMQ proxy in the current application thread.
+    /// The proxy will send all messages, received on both frontend and backend, to the capture socket.
+    /// The capture socket should be a ZMQ_PUB, ZMQ_DEALER, ZMQ_PUSH, or ZMQ_PAIR socket.
+    /// If the control socket is not None, the proxy supports control flow.
+    /// If PAUSE is received on this socket, the proxy suspends its activities.
+    /// If RESUME is received, it goes on. If TERMINATE is received, it terminates smoothly.
+    /// At start, the proxy runs normally as if run_proxy was used.
+    pub fn run_proxy_ex(frontend: &mut Socket, backend: &mut Socket,
+    capture: Option<&mut Socket>, control: Option<&mut Socket>) -> Result<(), Error> {
+        let capture_ptr = if capture.is_none() { std::ptr::null_mut() } else { capture.unwrap().socket };
+
+        let rc = {
+            if control.is_none() {
+                unsafe { zmq_sys::zmq_proxy(frontend.socket, backend.socket, capture_ptr) }
+            } else {
+                unsafe { zmq_sys::zmq_proxy_steerable(frontend.socket, backend.socket, capture_ptr, control.unwrap().socket) }
+            }
+        };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl Drop for Socket {
     fn drop(&mut self) {
         self.close_underly()
     }
+}
+
+/// Check a ZMQ capability
+///
+/// Bindng of `int zmq_has (const char *capability);`
+///
+/// The function shall report whether a specified capability is available in the library
+pub fn has_capability(capability: &str) -> bool {
+    let capability_cstr = ffi::CString::new(capability).unwrap();
+    let rc = unsafe { zmq_sys::zmq_has(capability_cstr.as_ptr()) };
+    rc == 1
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Debug)]
+pub enum POLL_EVENT {
+    POLLIN = 1,
+    POLLOUT = 2,
+    POLLERR = 4,
 }

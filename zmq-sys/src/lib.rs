@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 extern crate libc;
 
 pub use ffi::{
@@ -28,27 +29,30 @@ pub use ffi::{
     zmq_msg_set,
     zmq_msg_gets,
 
-    zmq_bind,
+    zmq_socket,
     zmq_close,
-    zmq_connect,
-    zmq_curve_keypair,
-    zmq_disconnect,
+    zmq_setsockopt,
     zmq_getsockopt,
+    zmq_bind,
+    zmq_connect,
+    zmq_unbind,
+    zmq_disconnect,
+    zmq_send,
+    zmq_send_const,
+    zmq_recv,
+    //zmq_sendmsg,          // Deprecated
+    //zmq_recvmsg,          // Deprecated
+    zmq_socket_monitor,
+
     zmq_has,
+
     zmq_poll,
     zmq_proxy,
     zmq_proxy_steerable,
-    zmq_recv,
-    zmq_recvmsg,
-    zmq_send,
-    zmq_send_const,
-    zmq_sendmsg,
-    zmq_setsockopt,
-    zmq_socket,
-    zmq_socket_monitor,
-    zmq_unbind,
-    zmq_z85_decode,
-    zmq_z85_encode,
+
+    //zmq_z85_encode,
+    //zmq_z85_decode,
+    //zmq_curve_keypair,
 };
 
 #[allow(non_camel_case_types)]
