@@ -761,6 +761,31 @@ impl Socket {
         }
     }
 
+    /// Send a UTF-8 string on socket
+    pub fn send_str(&mut self, data: &str, flags: SocketFlag) -> Result<i32, Error> {
+        self.send_bytes(data.as_bytes(), flags)
+    }
+
+    /// Receive bytes from a socket
+    pub fn recv_bytes(&mut self, flags: SocketFlag) -> Result<Vec<u8>, Error> {
+        match self.recv_msg(flags) {
+            Ok(msg) => Ok(msg.to_vec()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Receive bytes into a mutable slice
+    /// # Caution
+    /// *Any bytes exceeding the length of buffer will be truncated.*
+    pub fn recv_bytes_into_slice(&mut self, buffer: &mut [u8], flags: SocketFlag) -> Result<i32, Error> {
+        let rc = unsafe { zmq_sys::zmq_recv(self.socket, transmute(buffer.as_mut_ptr()), buffer.len(), flags.into_raw()) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(rc)
+        }
+    }
+
     /// Monitor socket events
     ///
     /// Binding of `int zmq_socket_monitor (void *socket, char *endpoint, int events);`
