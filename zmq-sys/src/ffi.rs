@@ -19,8 +19,8 @@ pub type zmq_free_fn =
 #[derive(Copy)]
 pub struct Struct_zmq_pollitem_t {
     pub socket: *mut c_void,
-    #[cfg(target_os = "windows")]
-    pub fd: ::libc::intptr_t,           // Windows Socket defined as UINT_PTR
+    #[cfg(target_os = "windows")]       // Need to fix this manually
+    pub fd: ::libc::intptr_t,           // Windows Socket is defined as UINT_PTR
     #[cfg(not(target_os = "windows"))]
     pub fd: c_int,
     pub events: c_short,

@@ -3,6 +3,7 @@ extern crate libc;
 
 pub use ffi::{
     zmq_msg_t,
+    zmq_pollitem_t,
 
     zmq_errno,
     zmq_strerror,

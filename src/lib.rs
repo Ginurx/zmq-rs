@@ -8,7 +8,7 @@ use std::ffi;
 use std::vec::Vec;
 use std::slice;
 use std::mem::transmute;
-use libc::{ c_int, c_void, size_t };
+use libc::{ c_int, c_void, size_t, c_short, c_long };
 
 pub const ZMQ_VERSION_MAJOR:i32 = 4;
 pub const ZMQ_VERSION_MINOR:i32 = 1;
@@ -786,6 +786,23 @@ impl Socket {
         }
     }
 
+    /// Receive a UTF-8 string from socket
+    pub fn recv_string(&mut self, flags: SocketFlag) -> Result<Result<String, Vec<u8>>, Error> {
+        match self.recv_bytes(flags) {
+            Ok(msg) => {
+                Ok({
+                    let s = String::from_utf8(msg);
+                    if s.is_ok() {
+                        Ok(s.unwrap())
+                    } else {
+                        Err(s.unwrap_err().into_bytes())
+                    }
+                })
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     /// Monitor socket events
     ///
     /// Binding of `int zmq_socket_monitor (void *socket, char *endpoint, int events);`
@@ -849,6 +866,26 @@ impl Socket {
             Ok(())
         }
     }
+
+    /// Create a poll item from current socket
+    ///
+    /// # Safty
+    /// There is no lifetime guarantee that poll item does not live out socket
+    pub fn as_poll_item(&self) -> PollItem {
+        PollItem::from_socket(&self)
+    }
+
+    ///  input/output multiplexing
+    ///
+    /// Binding of `int zmq_poll (zmq_pollitem_t *items, int nitems, long timeout);`
+    pub fn poll(items: &mut [PollItem], nitems: i32, timeout: i32) -> Result<i32, Error> {
+        let rc = unsafe { zmq_sys::zmq_poll(transmute(items.as_mut_ptr()), nitems as c_int, timeout as c_long) };
+        if rc == -1 {
+            Err(Error::from_last_err())
+        } else {
+            Ok(rc)
+        }
+    }
 }
 
 impl Drop for Socket {
@@ -869,9 +906,74 @@ pub fn has_capability(capability: &str) -> bool {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum POLL_EVENT {
     POLLIN = 1,
     POLLOUT = 2,
     POLLERR = 4,
+}
+
+#[cfg(target_os = "windows")]
+pub type SocketFd = ::libc::intptr_t;
+#[cfg(not(target_os = "windows"))]
+pub type SocketFd = c_int;
+
+#[repr(C)]
+pub struct PollItem {
+    pub socket: *mut c_void,
+    pub fd: SocketFd,
+    pub events: c_short,
+    pub revents: c_short,
+}
+
+impl PollItem {
+    pub fn from_socket(socket: &Socket) -> PollItem {
+        PollItem {
+            socket: socket.socket,
+            fd: 0,
+            events: 0,
+            revents: 0,
+        }
+    }
+
+    pub fn from_fd(fd: SocketFd) -> PollItem {
+        PollItem {
+            socket: std::ptr::null_mut(),
+            fd: fd,
+            events: 0,
+            revents: 0,
+        }
+    }
+
+    pub fn set_socket(&mut self, socket: &Socket) {
+        self.socket = socket.socket;
+        self.fd = 0;
+    }
+
+    pub fn set_fd(&mut self, fd: SocketFd) {
+        self.socket = std::ptr::null_mut();
+        self.fd = fd;
+    }
+
+    pub fn clear_events(&mut self) {
+        self.events = 0;
+    }
+
+    pub fn reg_event(&mut self, ev: POLL_EVENT) {
+        self.events |= ev as c_short;
+    }
+
+    pub fn unreg_event(&mut self, ev: POLL_EVENT) {
+        self.events &= !(ev as c_short);
+    }
+
+    /// Clear all returned events
+    pub fn clear_revents(&mut self) {
+        self.revents = 0;
+    }
+
+    /// Does this PollItem have the specified POLL_EVENT returned.
+    pub fn has_revent(&self, ev: POLL_EVENT) -> bool {
+        (self.revents & (ev as c_short)) > 0
+    }
 }
