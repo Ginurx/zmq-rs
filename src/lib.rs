@@ -945,31 +945,37 @@ impl PollItem {
         }
     }
 
-    pub fn set_socket(&mut self, socket: &Socket) {
+    pub fn set_socket(&mut self, socket: &Socket) -> &mut PollItem {
         self.socket = socket.socket;
         self.fd = 0;
+        self
     }
 
-    pub fn set_fd(&mut self, fd: SocketFd) {
+    pub fn set_fd(&mut self, fd: SocketFd) -> &mut PollItem {
         self.socket = std::ptr::null_mut();
         self.fd = fd;
+        self
     }
 
-    pub fn clear_events(&mut self) {
+    pub fn clear_events(&mut self) -> &mut PollItem {
         self.events = 0;
+        self
     }
 
-    pub fn reg_event(&mut self, ev: POLL_EVENT) {
+    pub fn reg_event(&mut self, ev: POLL_EVENT) -> &mut PollItem {
         self.events |= ev as c_short;
+        self
     }
 
-    pub fn unreg_event(&mut self, ev: POLL_EVENT) {
+    pub fn unreg_event(&mut self, ev: POLL_EVENT) -> &mut PollItem {
         self.events &= !(ev as c_short);
+        self
     }
 
     /// Clear all returned events
-    pub fn clear_revents(&mut self) {
+    pub fn clear_revents(&mut self) -> &mut PollItem {
         self.revents = 0;
+        self
     }
 
     /// Does this PollItem have the specified POLL_EVENT returned.
