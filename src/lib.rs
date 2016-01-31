@@ -476,22 +476,19 @@ impl Drop for Message {
     }
 }
 
-#[allow(non_camel_case_types)]
-pub enum SocketType {
-    PAIR        = 0,
-    PUB         = 1,
-    SUB         = 2,
-    REQ         = 3,
-    REP         = 4,
-    DEALER      = 5,
-    ROUTER      = 6,
-    PULL        = 7,
-    PUSH        = 8,
-    XPUB        = 9,
-    XSUB        = 10,
-    ZMQ_STREAM  = 11,
-}
-
+pub type SocketType = c_int;
+pub const PAIR: SocketType = 0;
+pub const PUB: SocketType = 1;
+pub const SUB: SocketType = 2;
+pub const REQ: SocketType = 3;
+pub const REP: SocketType = 4;
+pub const DEALER: SocketType = 5;
+pub const ROUTER: SocketType = 6;
+pub const PULL: SocketType = 7;
+pub const PUSH: SocketType = 8;
+pub const XPUB: SocketType = 9;
+pub const XSUB: SocketType = 10;
+pub const STREAM: SocketType = 11;
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug)]
@@ -587,14 +584,12 @@ impl std::ops::BitOr for SocketFlag {
     }
 }
 
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug)]
-pub enum SecurityMechanism {
-    ZMQ_NULL    = 0,
-    ZMQ_PLAIN   = 1,
-    ZMQ_CURVE   = 2,
-    ZMQ_GSSAPI  = 3,
-}
+pub type SecurityMechanism = c_int;
+
+pub const ZMQ_NULL: SecurityMechanism = 0;
+pub const ZMQ_PLAIN: SecurityMechanism = 1;
+pub const ZMQ_CURVE: SecurityMechanism = 2;
+pub const ZMQ_GSSAPI: SecurityMechanism = 3;
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug)]
@@ -612,6 +607,86 @@ pub enum SocketEvent {
     MONITOR_STOPPED   = 0x0400,
     ALL               = 0xFFFF,
 }
+
+
+fn bytes_to_string(bytes: Vec<u8>) -> String {
+    unsafe { ffi::CStr::from_ptr(transmute(bytes.as_ptr())).to_str().unwrap().to_string() }
+}
+
+macro_rules! getsockopt_template(
+    // function name to declare, option name, query/return type
+    ($name: ident, $opt: expr, $t: ty) => {
+        fn $name(&self) -> Result<$t, Error> {
+            let mut optval: $t = std::default::Default::default();
+            let mut optval_len: size_t = std::mem::size_of::<$t>() as size_t;
+            let optval_ptr = &mut optval as *mut $t;
+
+            let rc = unsafe { zmq_sys::zmq_getsockopt(self.socket, $opt as c_int, transmute(optval_ptr), &mut optval_len) };
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                Ok(optval)
+            }
+        }
+    };
+    // function name to declare, option name, query type, query count, map queried value to return value, return type
+    ($name: ident, $opt: expr, $t: ty, $n: expr, $rmap: expr, $r: ty) => {
+        fn $name(&self) -> Result<$r, Error> {
+            let mut optval: Vec<$t> = Vec::with_capacity($n);
+
+            let mut optval_len: size_t = optval.capacity() as size_t;
+            let optval_ptr = optval.as_mut_ptr();
+
+            let rc = unsafe {
+                zmq_sys::zmq_getsockopt(self.socket, $opt as c_int,
+                    transmute(optval_ptr), &mut optval_len)
+            };
+
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                unsafe { optval.set_len(optval_len); }
+                Ok($rmap(optval))
+            }
+        }
+    };
+    // function name to declare, option name, query type, map queried value to return value, return type
+    ($name: ident, $opt: expr, $t: ty, $rmap: expr, $r: ty) => {
+        fn $name(&self) -> Result<$r, Error> {
+            let mut optval: $t = std::default::Default::default();
+            let mut optval_len: size_t = std::mem::size_of::<$t>() as size_t;
+            let optval_ptr = &mut optval as *mut $t;
+
+            let rc = unsafe { zmq_sys::zmq_getsockopt(self.socket, $opt as c_int, transmute(optval_ptr), &mut optval_len) };
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                Ok($rmap(optval))
+            }
+        }
+    };
+    // function name to declare, option name, query type, query count
+    ($name: ident, $opt: expr, $t: ty, $n: expr) => {
+        fn $name(&self) -> Result<Vec<$t>, Error> {
+            let mut optval: Vec<$t> = Vec::with_capacity($n);
+
+            let mut optval_len: size_t = optval.capacity() as size_t;
+            let optval_ptr = optval.as_mut_ptr();
+
+            let rc = unsafe {
+                zmq_sys::zmq_getsockopt(self.socket, $opt as c_int,
+                    transmute(optval_ptr), &mut optval_len)
+            };
+
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                unsafe { optval.set_len(optval_len); }
+                Ok(optval)
+            }
+        }
+    };
+);
 
 pub struct Socket {
     socket: *mut c_void,
@@ -886,6 +961,83 @@ impl Socket {
             Ok(rc)
         }
     }
+
+    //-------------------------------- get options ----------------------------------- //
+    
+    getsockopt_template!(get_affinity, SocketOption::AFFINITY, u64);
+    getsockopt_template!(get_backlog, SocketOption::BACKLOG, i32);
+    getsockopt_template!(get_curve_publickey, SocketOption::CURVE_PUBLICKEY, u8, 32);
+    getsockopt_template!(get_curve_printable_publickey, SocketOption::CURVE_PUBLICKEY, u8, 41,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(get_curve_secretkey, SocketOption::CURVE_SECRETKEY, u8, 32);
+    getsockopt_template!(get_curve_printable_secretkey, SocketOption::CURVE_SECRETKEY, u8, 41,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(get_curve_serverkey, SocketOption::CURVE_SERVERKEY, u8, 32);
+    getsockopt_template!(get_curve_printable_serverkey, SocketOption::CURVE_SERVERKEY, u8, 41,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(get_events, SocketOption::EVENTS, PollEvent);
+    getsockopt_template!(get_fd, SocketOption::FD, SocketFd);
+    getsockopt_template!(is_gssapi_plaintext, SocketOption::GSSAPI_PLAINTEXT, i32, |r| { r > 0 }, bool);
+    getsockopt_template!(get_gssapi_principal, SocketOption::GSSAPI_PRINCIPAL, u8, 256,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(is_gssapi_server, SocketOption::GSSAPI_SERVER, i32, |r| { r > 0 }, bool);
+    getsockopt_template!(get_gssapi_service_principal, SocketOption::GSSAPI_SERVICE_PRINCIPAL, u8, 256,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(get_handshake_ivl, SocketOption::HANDSHAKE_IVL, i32);
+    getsockopt_template!(get_identity, SocketOption::IDENTITY, u8, 256);
+    getsockopt_template!(get_immediate, SocketOption::IMMEDIATE, i32, |r| { r > 0 }, bool);
+    //getsockopt_template!(get_ipv4only, SocketOption::IPV4ONLY, i32);      // deprecated
+    getsockopt_template!(is_ipv6_enabled, SocketOption::IPV6, i32, |r| { r > 0 }, bool);
+    /// Get last endpoint bound for TCP and IPC transports
+    /// if last endpoint has more than 2048 bytes, method call will be failed.
+    getsockopt_template!(get_last_endpoint, SocketOption::LAST_ENDPOINT, u8, 2048,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(get_linger, SocketOption::LINGER, i32);
+    getsockopt_template!(get_max_msg_size, SocketOption::MAXMSGSIZE, i64);
+    getsockopt_template!(get_mechanism, SocketOption::MECHANISM, i32);
+    getsockopt_template!(get_multicast_hops, SocketOption::MULTICAST_HOPS, i32);
+    getsockopt_template!(get_plain_password, SocketOption::PLAIN_PASSWORD, u8, 256,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(is_plain_server, SocketOption::PLAIN_SERVER, i32, |r| { r > 0 }, bool);
+    getsockopt_template!(get_plain_username, SocketOption::PLAIN_USERNAME, u8, 256,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
+    getsockopt_template!(get_rate, SocketOption::RATE, i32);
+    getsockopt_template!(get_rcvbuf, SocketOption::RCVBUF, i32);
+    getsockopt_template!(get_rcvhwm, SocketOption::RCVHWM, i32);
+    getsockopt_template!(get_rcvmore, SocketOption::RCVMORE, i32, |r| { r > 0 }, bool);
+    getsockopt_template!(get_rcvtimeo, SocketOption::RCVTIMEO, i32);
+    getsockopt_template!(get_reconnect_ivl, SocketOption::RECONNECT_IVL, i32);
+    getsockopt_template!(get_reconnect_ivl_max, SocketOption::RECONNECT_IVL_MAX, i32);
+    getsockopt_template!(get_recovery_ivl, SocketOption::RECOVERY_IVL, i32);
+    getsockopt_template!(get_sndbuf, SocketOption::SNDBUF, i32);
+    getsockopt_template!(get_sndhwm, SocketOption::SNDHWM, i32);
+    getsockopt_template!(get_sndtimeo, SocketOption::SNDTIMEO, i32);
+    getsockopt_template!(get_tcp_keepalive, SocketOption::TCP_KEEPALIVE, i32);
+    getsockopt_template!(get_tcp_keepalive_cnt, SocketOption::TCP_KEEPALIVE_CNT, i32);
+    getsockopt_template!(get_tcp_keepalive_idle, SocketOption::TCP_KEEPALIVE_IDLE, i32);
+    getsockopt_template!(get_tcp_keepalive_intvl, SocketOption::TCP_KEEPALIVE_INTVL, i32);
+    getsockopt_template!(get_tos, SocketOption::TOS, i32);
+    getsockopt_template!(get_type, SocketOption::TYPE, SocketType);
+    getsockopt_template!(get_zap_domain, SocketOption::ZAP_DOMAIN, u8, 256,
+        |r: Vec<u8>| {
+            bytes_to_string(r)
+        }, String);
 }
 
 impl Drop for Socket {
@@ -905,13 +1057,11 @@ pub fn has_capability(capability: &str) -> bool {
     rc == 1
 }
 
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug)]
-pub enum POLL_EVENT {
-    POLLIN = 1,
-    POLLOUT = 2,
-    POLLERR = 4,
-}
+pub type PollEvent = c_int;
+
+pub const POLLIN: PollEvent = 1;
+pub const POLLOUT: PollEvent = 2;
+pub const POLLERR: PollEvent = 4;
 
 #[cfg(target_os = "windows")]
 pub type SocketFd = ::libc::intptr_t;
@@ -962,12 +1112,12 @@ impl PollItem {
         self
     }
 
-    pub fn reg_event(&mut self, ev: POLL_EVENT) -> &mut PollItem {
+    pub fn reg_event(&mut self, ev: PollEvent) -> &mut PollItem {
         self.events |= ev as c_short;
         self
     }
 
-    pub fn unreg_event(&mut self, ev: POLL_EVENT) -> &mut PollItem {
+    pub fn unreg_event(&mut self, ev: PollEvent) -> &mut PollItem {
         self.events &= !(ev as c_short);
         self
     }
@@ -978,8 +1128,8 @@ impl PollItem {
         self
     }
 
-    /// Does this PollItem have the specified POLL_EVENT returned.
-    pub fn has_revent(&self, ev: POLL_EVENT) -> bool {
+    /// Does this PollItem have the specified PollEvent returned.
+    pub fn has_revent(&self, ev: PollEvent) -> bool {
         (self.revents & (ev as c_short)) > 0
     }
 }
