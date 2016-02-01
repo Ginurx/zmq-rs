@@ -253,7 +253,8 @@ pub struct Socket {
     socket: *mut c_void,
 }
 
-// todo: zmq_msg_send, zmq_msg_recv
+unsafe impl Send for Socket {}
+
 impl Socket {
     pub fn from_raw(socket: *mut c_void) -> Socket {
         Socket { socket: socket }
@@ -275,10 +276,21 @@ impl Socket {
     }
 
     fn close_underly(&mut self) {
-        let rc = unsafe { zmq_sys::zmq_close(self.socket) };
-        if rc == -1 {
-            panic!(Error::from_last_err());
+        loop {
+            let rc = unsafe { zmq_sys::zmq_close(self.socket) };
+            if rc != 0 {
+                let e = Error::from_last_err();
+                if e.get_errno() == ::errno::EINTR {
+                    continue;
+                } else {
+                    panic!(e);
+                }
+
+            } else {
+                break;
+            }
         }
+
     }
 
     ///  Accept incoming connections on a socket

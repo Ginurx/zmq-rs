@@ -229,7 +229,19 @@ unsafe impl Sync for Context {}
 
 impl Drop for Context {
     fn drop(&mut self) {
-        self.term().unwrap();
+        loop {
+            match self.term() {
+                Ok(_) => { },
+                Err(e) => {
+                    if e.get_errno() == EINTR {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
     }
 }
 
@@ -452,9 +464,19 @@ impl DerefMut for Message {
 
 impl Drop for Message {
     fn drop(&mut self) {
-        let rc = unsafe { zmq_sys::zmq_msg_close(&mut self.msg) };
-        if rc != 0 {
-            panic!(Error::from_last_err());
+        loop {
+            let rc = unsafe { zmq_sys::zmq_msg_close(&mut self.msg) };
+            if rc != 0 {
+                let e = Error::from_last_err();
+                if e.get_errno() == EINTR {
+                    continue;
+                } else {
+                    panic!(e);
+                }
+
+            } else {
+                break;
+            }
         }
     }
 }
