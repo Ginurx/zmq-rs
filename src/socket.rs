@@ -1,7 +1,7 @@
 use std::mem::transmute;
 use std::ffi;
 use super::*;
-use libc::{ c_int, c_void, size_t, c_short, c_long };
+use libc::{ c_int, c_void, size_t, c_short, c_long, c_ushort };
 use ::std;
 use ::zmq_sys;
 
@@ -226,6 +226,26 @@ enum SocketOption {
     XPUB_NODROP = 69,
 }
 
+pub type SocketEvent = c_ushort;
+
+pub const CONNECTED: SocketEvent = 0x0001;
+pub const CONNECT_DELAYED: SocketEvent = 0x0002;
+pub const CONNECT_RETRIED: SocketEvent = 0x0004;
+pub const LISTENING: SocketEvent = 0x0008;
+pub const BIND_FAILED: SocketEvent = 0x0010;
+pub const ACCEPTED: SocketEvent = 0x0020;
+pub const ACCEPT_FAILED: SocketEvent = 0x0040;
+pub const CLOSED: SocketEvent = 0x0080;
+pub const CLOSE_FAILED: SocketEvent = 0x0100;
+pub const DISCONNECTED: SocketEvent = 0x0200;
+pub const MONITOR_STOPPED: SocketEvent = 0x0400;
+pub const ALL: SocketEvent = 0xFFFF;
+
+pub type SocketFlag = c_int;
+
+pub const DONTWAIT: SocketFlag = 1;
+pub const SNDMORE: SocketFlag = 2;
+
 pub struct Socket {
     socket: *mut c_void,
 }
@@ -325,7 +345,7 @@ impl Socket {
     ///
     /// Binding of `int zmq_msg_send (zmq_msg_t *msg, void *socket, int flags);`
     pub fn send_msg(&mut self, mut msg: Message, flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_msg_send(&mut msg.msg, self.socket, flags.into_raw() as c_int) };
+        let rc = unsafe { zmq_sys::zmq_msg_send(&mut msg.msg, self.socket, flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -337,7 +357,7 @@ impl Socket {
     ///
     /// Binding of `int zmq_msg_recv (zmq_msg_t *msg, void *socket, int flags);`
     pub fn recv_into_msg(&mut self, msg: &mut Message, flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_msg_recv(&mut msg.msg, self.socket, flags.into_raw() as c_int) };
+        let rc = unsafe { zmq_sys::zmq_msg_recv(&mut msg.msg, self.socket, flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -370,7 +390,7 @@ impl Socket {
     ///
     /// The message buffer is assumed to be constant-memory(static) and will therefore not be copied or deallocated in any way
     pub fn send_const_bytes(&mut self, data: &'static [u8], flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_send_const(self.socket, transmute(data.as_ptr()), data.len(), flags.into_raw()) };
+        let rc = unsafe { zmq_sys::zmq_send_const(self.socket, transmute(data.as_ptr()), data.len(), flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -395,7 +415,7 @@ impl Socket {
     /// # Caution
     /// *Any bytes exceeding the length of buffer will be truncated.*
     pub fn recv_bytes_into_slice(&mut self, buffer: &mut [u8], flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_recv(self.socket, transmute(buffer.as_mut_ptr()), buffer.len(), flags.into_raw()) };
+        let rc = unsafe { zmq_sys::zmq_recv(self.socket, transmute(buffer.as_mut_ptr()), buffer.len(), flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {

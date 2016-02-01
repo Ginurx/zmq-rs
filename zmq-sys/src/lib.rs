@@ -51,9 +51,9 @@ pub use ffi::{
     zmq_proxy,
     zmq_proxy_steerable,
 
-    //zmq_z85_encode,
-    //zmq_z85_decode,
-    //zmq_curve_keypair,
+    zmq_z85_encode,
+    zmq_z85_decode,
+    zmq_curve_keypair,
 };
 
 #[allow(non_camel_case_types)]

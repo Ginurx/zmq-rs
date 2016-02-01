@@ -136,19 +136,19 @@ impl std::error::Error for Error {
 
 #[allow(non_camel_case_types)]
 pub enum ContextSetOption {
-    ZMQ_IO_THREADS = 1,
-    ZMQ_MAX_SOCKETS = 2,
-    ZMQ_THREAD_PRIORITY = 3,
-    ZMQ_THREAD_SCHED_POLICY = 4,
-    ZMQ_IPV6 = 42,
+    IO_THREADS = 1,
+    MAX_SOCKETS = 2,
+    THREAD_PRIORITY = 3,
+    THREAD_SCHED_POLICY = 4,
+    IPV6 = 42,
 }
 
 #[allow(non_camel_case_types)]
 pub enum ContextGetOption {
-    ZMQ_IO_THREADS = 1,
-    ZMQ_MAX_SOCKETS = 2,
-    ZMQ_SOCKET_LIMIT = 3,
-    ZMQ_IPV6 = 42,
+    IO_THREADS = 1,
+    MAX_SOCKETS = 2,
+    SOCKET_LIMIT = 3,
+    IPV6 = 42,
 }
 
 pub struct Context {
@@ -493,63 +493,17 @@ pub const XPUB: SocketType = 9;
 pub const XSUB: SocketType = 10;
 pub const STREAM: SocketType = 11;
 
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug)]
-pub enum MessageProperty {
-    MORE        = 1,
-    SRCFD       = 2,
-    SHARED      = 3,
-}
+pub type MessageProperty = c_int;
+pub const MORE: MessageProperty = 1;
+pub const SRCFD: MessageProperty = 2;
+pub const SHARED: MessageProperty = 3;
 
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug)]
-pub enum SocketFlag {
-    DONTWAIT,//    = 1,
-    SNDMORE,//     = 2,
-    COMBINED(i32),
-}
-
-impl SocketFlag {
-    pub fn into_raw(&self) -> i32 {
-        match *self {
-            SocketFlag::DONTWAIT => 1,
-            SocketFlag::SNDMORE => 2,
-            SocketFlag::COMBINED(i) => i,
-        }
-    }
-}
-
-impl std::ops::BitOr for SocketFlag {
-    type Output = SocketFlag;
-
-    fn bitor(self, rhs: SocketFlag) -> SocketFlag {
-        SocketFlag::COMBINED(self.into_raw() | rhs.into_raw())
-    }
-}
 
 pub type SecurityMechanism = c_int;
-
 pub const ZMQ_NULL: SecurityMechanism = 0;
 pub const ZMQ_PLAIN: SecurityMechanism = 1;
 pub const ZMQ_CURVE: SecurityMechanism = 2;
 pub const ZMQ_GSSAPI: SecurityMechanism = 3;
-
-#[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug)]
-pub enum SocketEvent {
-    CONNECTED         = 0x0001,
-    CONNECT_DELAYED   = 0x0002,
-    CONNECT_RETRIED   = 0x0004,
-    LISTENING         = 0x0008,
-    BIND_FAILED       = 0x0010,
-    ACCEPTED          = 0x0020,
-    ACCEPT_FAILED     = 0x0040,
-    CLOSED            = 0x0080,
-    CLOSE_FAILED      = 0x0100,
-    DISCONNECTED      = 0x0200,
-    MONITOR_STOPPED   = 0x0400,
-    ALL               = 0xFFFF,
-}
 
 /// Check a ZMQ capability
 ///
@@ -560,4 +514,80 @@ pub fn has_capability(capability: &str) -> bool {
     let capability_cstr = ffi::CString::new(capability).unwrap();
     let rc = unsafe { zmq_sys::zmq_has(capability_cstr.as_ptr()) };
     rc == 1
+}
+
+//  Encryption functions
+/*  Encode data with Z85 encoding. Returns encoded data                       */
+//ZMQ_EXPORT char *zmq_z85_encode (char *dest, const uint8_t *data, size_t size);
+
+/// Encode a binary key as Z85 printable text
+///
+/// Binding of `char *zmq_z85_encode (char *dest, const uint8_t *data, size_t size);`
+///
+/// The function will encode the binary block specified by data and size into a string in dest.
+/// The size of the binary block must be divisible by 4.
+pub fn z85_encode(data: &[u8]) -> Result<String, Error> {
+    let len = data.len() as i32 * 5 / 4 + 1;
+    let mut dest: Vec<u8> = Vec::with_capacity(len as usize);
+
+    let rc = unsafe { zmq_sys::zmq_z85_encode(transmute(dest.as_mut_ptr()), data.as_ptr(), data.len()) };
+    if rc.is_null() {
+        Err(Error::from_last_err())
+    } else {
+        unsafe {
+            dest.set_len(len as usize);
+            let cstr = ffi::CStr::from_ptr(transmute(dest.as_ptr()));
+
+            Ok(String::from_utf8(cstr.to_bytes().to_vec()).unwrap())
+        }
+    }
+}
+
+///  Decode a binary key from Z85 printable text
+///
+/// Binding of `uint8_t *zmq_z85_decode (uint8_t *dest, const char *string);`
+///
+/// The function will decode string into dest. The length of string in bytes shall be divisible by 5
+pub fn z85_decode(encoded: &str) -> Result<Vec<u8>, Error> {
+    let encoded_cstr = ffi::CString::new(encoded).unwrap();
+    let len = (encoded_cstr.as_bytes().len() as i32 * 4 / 5) as i32;
+    let mut dest: Vec<u8> = Vec::with_capacity(len as usize);
+
+    let rc = unsafe { zmq_sys::zmq_z85_decode(dest.as_mut_ptr(), encoded_cstr.as_ptr()) };
+    if rc.is_null() {
+        Err(Error::from_last_err())
+    } else  {
+        unsafe {
+            dest.set_len(len as usize);
+        }
+        Ok(dest)
+    }
+}
+
+
+/// Generate z85-encoded public and private keypair with libsodium.
+///
+/// Binding of `int zmq_curve_keypair (char *z85_public_key, char *z85_secret_key);`
+///
+/// The function will return a newly generated random keypair consisting of a public key and a secret key.
+/// The keys are encoded using z85_encode().
+pub fn gen_curve_keypair() -> Result<(String, String), Error> {
+    let mut public_key: Vec<u8> = Vec::with_capacity(41);
+    let mut secret_key: Vec<u8> = Vec::with_capacity(41);
+
+    let rc = unsafe {
+        zmq_sys::zmq_curve_keypair(
+            transmute(public_key.as_mut_ptr()),
+            transmute(secret_key.as_mut_ptr())
+        )
+    };
+    if rc == -1 {
+        Err(Error::from_last_err())
+    } else  {
+        unsafe {
+            public_key.set_len(40);
+            secret_key.set_len(40);
+        }
+        Ok((String::from_utf8(public_key).unwrap(), String::from_utf8(secret_key).unwrap()))
+    }
 }
