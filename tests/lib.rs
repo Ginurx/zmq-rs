@@ -9,3 +9,10 @@ fn version_test() {
         ZMQ_MAKE_VERSION!(4, 1, 4)
     );
 }
+
+#[test]
+fn context_test() {
+    let mut ctx = zmq::Context::new().unwrap();
+
+    ctx.shutdown().unwrap();
+}
