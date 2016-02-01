@@ -2,9 +2,13 @@
 
 extern crate libc;
 extern crate zmq_sys;
+#[macro_use]
+extern crate cfg_if;
 
 mod socket;
+mod errno;
 pub use socket::Socket;
+pub use errno::*;
 
 use std::ops::{ Deref, DerefMut };
 use std::ffi;
@@ -39,34 +43,6 @@ pub const ZMQ_VERSION:i32 = ZMQ_MAKE_VERSION!(
     ZMQ_VERSION_MINOR,
     ZMQ_VERSION_PATCH
 );
-
-/*
-const ZMQ_HAUSNUMERO: c_int = 156384712;
-
-const ENOTSUP: c_int = (ZMQ_HAUSNUMERO + 1);
-const EPROTONOSUPPORT: c_int = (ZMQ_HAUSNUMERO + 2);
-const ENOBUFS: c_int = (ZMQ_HAUSNUMERO + 3);
-const ENETDOWN: c_int = (ZMQ_HAUSNUMERO + 4);
-const EADDRINUSE: c_int = (ZMQ_HAUSNUMERO + 5);
-const EADDRNOTAVAIL: c_int = (ZMQ_HAUSNUMERO + 6);
-const ECONNREFUSED: c_int = (ZMQ_HAUSNUMERO + 7);
-const EINPROGRESS: c_int = (ZMQ_HAUSNUMERO + 8);
-const ENOTSOCK: c_int = (ZMQ_HAUSNUMERO + 9);
-const EMSGSIZE: c_int = (ZMQ_HAUSNUMERO + 10);
-const EAFNOSUPPORT: c_int = (ZMQ_HAUSNUMERO + 11);
-const ENETUNREACH: c_int = (ZMQ_HAUSNUMERO + 12);
-const ECONNABORTED: c_int = (ZMQ_HAUSNUMERO + 13);
-const ECONNRESET: c_int = (ZMQ_HAUSNUMERO + 14);
-const ENOTCONN: c_int = (ZMQ_HAUSNUMERO + 15);
-const ETIMEDOUT: c_int = (ZMQ_HAUSNUMERO + 16);
-const EHOSTUNREACH: c_int = (ZMQ_HAUSNUMERO + 17);
-const ENETRESET: c_int = (ZMQ_HAUSNUMERO + 18);
-
-const EFSM: c_int = (ZMQ_HAUSNUMERO + 51);
-const ENOCOMPATPROTO: c_int = (ZMQ_HAUSNUMERO + 52);
-const ETERM: c_int = (ZMQ_HAUSNUMERO + 53);
-const EMTHREAD: c_int = (ZMQ_HAUSNUMERO + 54);
-*/
 
 fn errno() -> c_int {
     unsafe {
@@ -113,6 +89,10 @@ impl Error {
             err_num: err_num,
             err_str: err_str,
         }
+    }
+
+    pub fn get_errno(&self) -> Errno {
+        self.err_num as Errno
     }
 }
 

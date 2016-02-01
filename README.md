@@ -25,6 +25,7 @@ Set ZMQ_LIB_NAME to dll name without 'lib' prefix.
 For example, we have libzmq.dll at "C:\zmq\bin\".
 
 Type following commands in CMD
+*** git bash has problem to read system environment variables ***
 
 ```
 set ZMQ_LIB_PATH=C:\zmq\bin\

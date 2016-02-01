@@ -1,7 +1,10 @@
+extern crate libc;
+
 use std::mem::transmute;
 use std::ffi;
-use super::*;
+
 use libc::{ c_int, c_void, size_t, c_short, c_long, c_ushort };
+use super::{ Error, Message, SocketType };
 use ::std;
 use ::zmq_sys;
 

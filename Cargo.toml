@@ -9,6 +9,7 @@ repository = "https://github.com/Ginurx/zmq-rs"
 [dependencies]
 libc = "0.2.*"
 zmq-sys = { path = "zmq-sys" }
+cfg-if = "0.1.0"
 
 [[example]]
 name = "version"
