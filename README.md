@@ -6,9 +6,7 @@ Tracking latest stable ZMQ - 4.1.4 (currently)
 ***Caution:***
 deprecated APIs in 4.1.4 are not accessable
 
-I hope someone could help me improve the quality of this documentation,
-since I'm not a native English speaker.
-
+I hope someone could help me improve the quality of this documentation.
 ## Feature
 
 - Windows compatible
