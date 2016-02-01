@@ -37,10 +37,16 @@ pub const ENOLCK: Errno = 39;
 pub const ENOSYS: Errno = 40;
 pub const ENOTEMPTY: Errno = 41;
 
-cfg_if! {
-    if #[cfg(windows)] {
-        const ZMQ_HAUSNUMERO: Errno = 156384712;
+const ZMQ_HAUSNUMERO: Errno = 156384712;
 
+/*  Native 0MQ error codes.                                                   */
+pub const EFSM: Errno = (ZMQ_HAUSNUMERO + 51);
+pub const ENOCOMPATPROTO: Errno = (ZMQ_HAUSNUMERO + 52);
+pub const ETERM: Errno = (ZMQ_HAUSNUMERO + 53);
+pub const EMTHREAD: Errno = (ZMQ_HAUSNUMERO + 54);
+
+cfg_if! {
+    if #[cfg(target_os = "windows")] {
         pub const ENOTSUP: Errno = (ZMQ_HAUSNUMERO + 1);
         pub const EPROTONOSUPPORT: Errno = (ZMQ_HAUSNUMERO + 2);
         pub const ENOBUFS: Errno = (ZMQ_HAUSNUMERO + 3);
@@ -59,13 +65,7 @@ cfg_if! {
         pub const ETIMEDOUT: Errno = (ZMQ_HAUSNUMERO + 16);
         pub const EHOSTUNREACH: Errno = (ZMQ_HAUSNUMERO + 17);
         pub const ENETRESET: Errno = (ZMQ_HAUSNUMERO + 18);
-
-        pub const EFSM: Errno = (ZMQ_HAUSNUMERO + 51);
-        pub const ENOCOMPATPROTO: Errno = (ZMQ_HAUSNUMERO + 52);
-        pub const ETERM: Errno = (ZMQ_HAUSNUMERO + 53);
-        pub const EMTHREAD: Errno = (ZMQ_HAUSNUMERO + 54);
     } else {
-
         pub const ENOTSUP: Errno = libc::EOPNOTSUPP;
         pub const EPROTONOSUPPORT: Errno = libc::EPROTONOSUPPORT;
         pub const ENOBUFS: Errno = libc::ENOBUFS;
@@ -84,10 +84,5 @@ cfg_if! {
         pub const ETIMEDOUT: Errno = libc::ETIMEDOUT;
         pub const EHOSTUNREACH: Errno = libc::EHOSTUNREACH;
         pub const ENETRESET: Errno = libc::ENETRESET;
-
-        pub const EFSM: Errno = libc::EFSM;
-        pub const ENOCOMPATPROTO: Errno = libc::ENOCOMPATPROTO;
-        pub const ETERM: Errno = libc::ETERM;
-        pub const EMTHREAD: Errno = libc::EMTHREAD;
     }
 }
