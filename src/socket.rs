@@ -251,13 +251,14 @@ pub const SNDMORE: SocketFlag = 2;
 
 pub struct Socket {
     socket: *mut c_void,
+    closed: bool,
 }
 
 unsafe impl Send for Socket {}
 
 impl Socket {
     pub fn from_raw(socket: *mut c_void) -> Socket {
-        Socket { socket: socket }
+        Socket { socket: socket, closed: false }
     }
 
     /// Close 0MQ socket
@@ -271,11 +272,12 @@ impl Socket {
     /// The behaviour for discarding messages sent by the application with send()
     /// but not yet physically transferred to the network depends on the value of
     /// the ZMQ_LINGER socket option for the specified socket.
-    pub fn close(self) {
-        drop(self)
+    pub fn close(&mut self) -> Result<(), Error> {
+        self.closed = true;
+        self.close_underly()
     }
 
-    fn close_underly(&mut self) {
+    fn close_underly(&mut self) -> Result<(), Error> {
         loop {
             let rc = unsafe { zmq_sys::zmq_close(self.socket) };
             if rc != 0 {
@@ -283,14 +285,14 @@ impl Socket {
                 if e.get_errno() == ::errno::EINTR {
                     continue;
                 } else {
-                    panic!(e);
+                    return Err(e);
                 }
 
             } else {
                 break;
             }
         }
-
+        Ok(())
     }
 
     ///  Accept incoming connections on a socket
@@ -681,7 +683,9 @@ impl Socket {
 
 impl Drop for Socket {
     fn drop(&mut self) {
-        self.close_underly()
+        if !self.closed {
+            self.close_underly().unwrap();
+        }
     }
 }
 

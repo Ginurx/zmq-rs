@@ -96,8 +96,8 @@ fn socket_test() {
     rep.unbind(bindpoint).unwrap();
     req.disconnect(bindpoint).unwrap();
 
-    req.close();
-    rep.close();
+    req.close().unwrap();
+    rep.close().unwrap();
 
     ctx.shutdown().unwrap();
 }

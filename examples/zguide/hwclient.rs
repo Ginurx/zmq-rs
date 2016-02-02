@@ -14,6 +14,6 @@ fn main() {
         requester.recv_bytes_into_slice(&mut buffer, 0).unwrap();
         println!("Received World {}", request_nbr);
     }
-    requester.close();
+    requester.close().unwrap();
     context.shutdown().unwrap();
 }
