@@ -14,3 +14,11 @@ cfg-if = "0.1.0"
 [[example]]
 name = "version"
 path = "examples/version/main.rs"
+
+[[example]]
+name = "hwserver"
+path = "examples/zguide/hwserver.rs"
+
+[[example]]
+name = "hwclient"
+path = "examples/zguide/hwclient.rs"
