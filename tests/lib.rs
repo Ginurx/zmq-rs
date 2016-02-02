@@ -24,19 +24,14 @@ fn capability_test() {
 fn context_test() {
     let mut ctx = zmq::Context::new().unwrap();
 
-    ctx.set_option(zmq::ContextSetOption::IO_THREADS, 2).unwrap();
-    ctx.set_option(zmq::ContextSetOption::MAX_SOCKETS, 10).unwrap();
+    ctx.set_io_threads(2).unwrap();
+    ctx.set_max_sockets(10).unwrap();
+    ctx.set_ipv6(1).unwrap();
 
-    // not available on windows
-    //ctx.set_option(zmq::ContextSetOption::THREAD_PRIORITY, -1).unwrap();
-    //ctx.set_option(zmq::ContextSetOption::THREAD_PRIORITY, -1).unwrap();
-
-    ctx.set_option(zmq::ContextSetOption::IPV6, 1).unwrap();
-
-    ctx.get_option(zmq::ContextGetOption::IO_THREADS).unwrap();
-    ctx.get_option(zmq::ContextGetOption::MAX_SOCKETS).unwrap();
-    ctx.get_option(zmq::ContextGetOption::SOCKET_LIMIT).unwrap();
-    ctx.get_option(zmq::ContextGetOption::IPV6).unwrap();
+    ctx.get_io_threads().unwrap();
+    ctx.get_max_sockets().unwrap();
+    ctx.get_socket_limit().unwrap();
+    ctx.is_ipv6_enabled().unwrap();
 
     ctx.shutdown().unwrap();
 }
@@ -92,7 +87,7 @@ fn socket_test() {
 
     let msg = zmq::Message::from_slice("req".as_bytes()).unwrap();
     req.send_msg(msg, 0).unwrap();
-    let recv_msg = rep.recv_msg(0).unwrap();
+    let _recv_msg = rep.recv_msg(0).unwrap();
 
     rep.send_str("str", 0 ).unwrap();
     let recv_str = req.recv_string(0).unwrap().unwrap();

@@ -1,6 +1,6 @@
 [package]
 name = "zmq"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Qin Zhuang <66458804@QQ.com>"]
 license = "MIT"
 description = "High-level bindings to the zeromq library"

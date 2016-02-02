@@ -114,22 +114,51 @@ impl std::error::Error for Error {
     }
 }
 
-#[allow(non_camel_case_types)]
-pub enum ContextSetOption {
-    IO_THREADS = 1,
-    MAX_SOCKETS = 2,
-    THREAD_PRIORITY = 3,
-    THREAD_SCHED_POLICY = 4,
-    IPV6 = 42,
+type ContextOption = c_int;
+
+const IO_THREADS: ContextOption = 1;         //  get     /   set
+const MAX_SOCKETS: ContextOption = 2;        //  get     /   set
+const SOCKET_LIMIT: ContextOption = 3;       //  get     /
+const THREAD_PRIORITY: ContextOption = 3;    //          /   set
+const THREAD_SCHED_POLICY: ContextOption = 4;//          /   set
+const IPV6: ContextOption = 42;              //  get     /   set
+
+macro_rules! getctxopt_template {
+    ($name: ident, $opt: expr) => {
+        pub fn $name(&self) -> Result<i32, Error> {
+            let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, $opt as c_int) };
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                Ok(rc)
+            }
+        }
+    };
+    ($name: ident, $opt: expr, $map: expr, $rt: ty) => {
+        pub fn $name(&self) -> Result<$rt, Error> {
+            let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, $opt as c_int) };
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                Ok($map(rc))
+            }
+        }
+    };
 }
 
-#[allow(non_camel_case_types)]
-pub enum ContextGetOption {
-    IO_THREADS = 1,
-    MAX_SOCKETS = 2,
-    SOCKET_LIMIT = 3,
-    IPV6 = 42,
+macro_rules! setctxopt_template {
+    ($name: ident, $opt: expr) => {
+        pub fn $name(&mut self, optval: i32) -> Result<(), Error> {
+            let rc = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr,  $opt as c_int, optval as c_int) };
+            if rc == -1 {
+                Err(Error::from_last_err())
+            } else {
+                Ok(())
+            }
+        }
+    };
 }
+
 
 pub struct Context {
     ctx_ptr: *mut c_void,
@@ -181,33 +210,16 @@ impl Context {
         }
     }
 
-    /// Set context options
-    ///
-    /// Bindnig of `int zmq_ctx_set (void *context, int option_name, int option_value);`
-    ///
-    /// The function will set the option specified by the option_name argument to the value of the option_value argument.
-    pub fn set_option(&self, option_name: ContextSetOption, option_value: c_int) -> Result<(), Error> {
-        let rc = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr, option_name as c_int, option_value) };
-        if rc == -1 {
-            Err(Error::from_last_err())
-        } else {
-            Ok(())
-        }
-    }
+    getctxopt_template!(get_io_threads, IO_THREADS);
+    getctxopt_template!(get_max_sockets, MAX_SOCKETS);
+    getctxopt_template!(get_socket_limit, SOCKET_LIMIT);
+    getctxopt_template!(is_ipv6_enabled, IPV6, |r| { r > 0 }, bool);
 
-    /// Get context options
-    ///
-    /// Binding of `int zmq_ctx_get (void *context, int option_name);`
-    ///
-    /// The function will return the option specified by the option_name argument.
-    pub fn get_option(&self, option_name: ContextGetOption) -> Result<c_int, Error> {
-        let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, option_name as c_int) };
-        if rc == -1 {
-            Err(Error::from_last_err())
-        } else {
-            Ok(rc)
-        }
-    }
+    setctxopt_template!(set_io_threads, IO_THREADS);
+    setctxopt_template!(set_max_sockets, MAX_SOCKETS);
+    setctxopt_template!(set_thread_priority, THREAD_PRIORITY);
+    setctxopt_template!(set_thread_sched_policy, THREAD_SCHED_POLICY);
+    setctxopt_template!(set_ipv6, IPV6);
 
     /// Create 0MQ socket
     ///
