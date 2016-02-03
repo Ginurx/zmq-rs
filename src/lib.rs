@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 extern crate libc;
-extern crate zmq_sys;
+extern crate zmq_ffi;
 #[macro_use]
 extern crate cfg_if;
 
@@ -46,13 +46,13 @@ pub const ZMQ_VERSION:i32 = ZMQ_MAKE_VERSION!(
 
 fn errno() -> c_int {
     unsafe {
-        zmq_sys::zmq_errno()
+        zmq_ffi::zmq_errno()
     }
 }
 
 fn strerror(errnum: c_int) -> String {
     unsafe {
-        let s = zmq_sys::zmq_strerror(errnum);
+        let s = zmq_ffi::zmq_strerror(errnum);
         ffi::CStr::from_ptr(s).to_str().unwrap().to_string()
     }
 }
@@ -68,7 +68,7 @@ pub fn version() -> (i32, i32, i32) {
     let mut patch = 0;
 
     unsafe {
-        zmq_sys::zmq_version(&mut major, &mut minor, &mut patch);
+        zmq_ffi::zmq_version(&mut major, &mut minor, &mut patch);
     }
 
     (major as i32, minor as i32, patch as i32)
@@ -126,7 +126,7 @@ const IPV6: ContextOption = 42;              //  get     /   set
 macro_rules! getctxopt_template {
     ($name: ident, $opt: expr) => {
         pub fn $name(&self) -> Result<i32, Error> {
-            let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, $opt as c_int) };
+            let rc = unsafe { zmq_ffi::zmq_ctx_get(self.ctx_ptr, $opt as c_int) };
             if rc == -1 {
                 Err(Error::from_last_err())
             } else {
@@ -136,7 +136,7 @@ macro_rules! getctxopt_template {
     };
     ($name: ident, $opt: expr, $map: expr, $rt: ty) => {
         pub fn $name(&self) -> Result<$rt, Error> {
-            let rc = unsafe { zmq_sys::zmq_ctx_get(self.ctx_ptr, $opt as c_int) };
+            let rc = unsafe { zmq_ffi::zmq_ctx_get(self.ctx_ptr, $opt as c_int) };
             if rc == -1 {
                 Err(Error::from_last_err())
             } else {
@@ -149,7 +149,7 @@ macro_rules! getctxopt_template {
 macro_rules! setctxopt_template {
     ($name: ident, $opt: expr) => {
         pub fn $name(&mut self, optval: i32) -> Result<(), Error> {
-            let rc = unsafe { zmq_sys::zmq_ctx_set(self.ctx_ptr,  $opt as c_int, optval as c_int) };
+            let rc = unsafe { zmq_ffi::zmq_ctx_set(self.ctx_ptr,  $opt as c_int, optval as c_int) };
             if rc == -1 {
                 Err(Error::from_last_err())
             } else {
@@ -174,7 +174,7 @@ impl Context {
     /// A ØMQ context is thread safe and may be shared among as many application threads as necessary,
     /// without any additional locking required on the part of the caller.
     pub fn new() -> Result<Context, Error> {
-        let ctx_ptr = unsafe { zmq_sys::zmq_ctx_new() };
+        let ctx_ptr = unsafe { zmq_ffi::zmq_ctx_new() };
         ret_when_null!(ctx_ptr);
         Ok(Context {
             ctx_ptr: ctx_ptr,
@@ -186,7 +186,7 @@ impl Context {
     /// Binding of `int zmq_ctx_term (void *context);`
     /// This function will be called automatically when context goes out of scope
     fn term(&mut self) -> Result<(), Error> {
-        let rc = unsafe { zmq_sys::zmq_ctx_term(self.ctx_ptr) };
+        let rc = unsafe { zmq_ffi::zmq_ctx_term(self.ctx_ptr) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -202,7 +202,7 @@ impl Context {
     /// Context shutdown will cause any blocking operations currently in progress on sockets open within context to return immediately with an error code of ETERM.
     /// With the exception of Socket::Close(), any further operations on sockets open within context will fail with an error code of ETERM.
     pub fn shutdown(&mut self) -> Result<(), Error> {
-        let rc = unsafe { zmq_sys::zmq_ctx_shutdown(self.ctx_ptr) };
+        let rc = unsafe { zmq_ffi::zmq_ctx_shutdown(self.ctx_ptr) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -230,7 +230,7 @@ impl Context {
     /// In order to establish a message flow a socket must first be connected to at least one endpoint with Scoket::Connect,
     /// or at least one endpoint must be created for accepting incoming connections with Socket::Bind().
     pub fn socket(&self, t: SocketType) -> Result<Socket, Error> {
-        let socket = unsafe { zmq_sys::zmq_socket(self.ctx_ptr, t as c_int) };
+        let socket = unsafe { zmq_ffi::zmq_socket(self.ctx_ptr, t as c_int) };
         ret_when_null!(socket);
         Ok(Socket::from_raw(socket))
     }
@@ -260,7 +260,7 @@ impl Drop for Context {
 const MSG_SIZE: usize = 64;
 
 pub struct Message {
-    msg: zmq_sys::zmq_msg_t,
+    msg: zmq_ffi::zmq_msg_t,
 }
 
 unsafe extern "C" fn zmq_free_fn(data: *mut c_void, hint: *mut c_void) {
@@ -277,8 +277,8 @@ impl Message {
     /// The function will return a message object to represent an empty message.
     /// This function is most useful when called before receiving a message.
     pub fn new() -> Result<Message, Error> {
-        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
-        let rc = unsafe { zmq_sys::zmq_msg_init(&mut msg) };
+        let mut msg = zmq_ffi::zmq_msg_t { unknown: [0; MSG_SIZE] };
+        let rc = unsafe { zmq_ffi::zmq_msg_init(&mut msg) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -293,8 +293,8 @@ impl Message {
     /// The function will allocate any resources required to store a message size bytes long and
     /// return a message object to represent the newly allocated message.
     pub fn with_capcity(len: usize) -> Result<Message, Error> {
-        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
-        let rc = unsafe { zmq_sys::zmq_msg_init_size(&mut msg, len as size_t) };
+        let mut msg = zmq_ffi::zmq_msg_t { unknown: [0; MSG_SIZE] };
+        let rc = unsafe { zmq_ffi::zmq_msg_init_size(&mut msg, len as size_t) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -316,9 +316,9 @@ impl Message {
         let data = vec.into_boxed_slice();
         let free_fn = unsafe { transmute(zmq_free_fn) };
 
-        let mut msg = zmq_sys::zmq_msg_t { unknown: [0; MSG_SIZE] };
+        let mut msg = zmq_ffi::zmq_msg_t { unknown: [0; MSG_SIZE] };
         let rc = unsafe {
-            zmq_sys::zmq_msg_init_data(&mut msg, Box::into_raw(data) as *mut c_void, len,
+            zmq_ffi::zmq_msg_init_data(&mut msg, Box::into_raw(data) as *mut c_void, len,
                 free_fn, transmute(len))
             };
         if rc == -1 {
@@ -347,7 +347,7 @@ impl Message {
     /// The original content of dest, if any, will be released
     pub fn msg_move(dest: &mut Message, src: &mut Message) -> Result<(), Error> {
         let rc = unsafe {
-            zmq_sys::zmq_msg_move(&mut dest.msg, &mut src.msg)
+            zmq_ffi::zmq_msg_move(&mut dest.msg, &mut src.msg)
         };
         if rc == -1 {
             Err(Error::from_last_err())
@@ -364,7 +364,7 @@ impl Message {
     /// The original content of dest, if any, will be released.
     pub fn msg_copy(dest: &mut Message, src: &Message) -> Result<(), Error> {
         let rc = unsafe {
-            zmq_sys::zmq_msg_copy(&mut dest.msg, transmute(&src.msg))
+            zmq_ffi::zmq_msg_copy(&mut dest.msg, transmute(&src.msg))
         };
         if rc == -1 {
             Err(Error::from_last_err())
@@ -379,7 +379,7 @@ impl Message {
     ///
     /// The function will return a pointer to the message content.
     pub unsafe fn get_data_ptr(&mut self) -> *mut c_void {
-        zmq_sys::zmq_msg_data(&mut self.msg)
+        zmq_ffi::zmq_msg_data(&mut self.msg)
     }
 
     /// Retrieve pointer to message content.
@@ -388,7 +388,7 @@ impl Message {
     ///
     /// The function will return a pointer to the message content.
     pub unsafe fn get_const_data_ptr(&self) -> *const c_void {
-        zmq_sys::zmq_msg_data(transmute(&self.msg))
+        zmq_ffi::zmq_msg_data(transmute(&self.msg))
     }
 
     /// Retrieve message content size in bytes
@@ -397,7 +397,7 @@ impl Message {
     ///
     /// The function will return the size in bytes of the content of the message.
     pub fn len(&self) -> usize {
-        unsafe { zmq_sys::zmq_msg_size(transmute(&self.msg)) }
+        unsafe { zmq_ffi::zmq_msg_size(transmute(&self.msg)) }
     }
 
     ///  Indicate if there are more message parts to receive
@@ -407,7 +407,7 @@ impl Message {
     /// The function indicates whether this is part of a multi-part message, and there are further parts to receive.
     /// This method is identical to xxxxx with an argument of ZMQ_MORE.
     pub fn has_more(&self) -> bool {
-        unsafe { zmq_sys::zmq_msg_more(transmute(&self.msg)) > 0 }
+        unsafe { zmq_ffi::zmq_msg_more(transmute(&self.msg)) > 0 }
     }
 
     /// Get message property
@@ -416,7 +416,7 @@ impl Message {
     ///
     /// The function will return the value for the property specified by the property argument.
     pub fn get_property(&self, property: MessageProperty) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_msg_get(transmute(&self.msg), property as c_int) };
+        let rc = unsafe { zmq_ffi::zmq_msg_get(transmute(&self.msg), property as c_int) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else  {
@@ -443,7 +443,7 @@ impl Message {
     pub fn get_meta<'a>(&'a self, property: &str) -> Option<&'a str> {
         let prop_cstr = ffi::CString::new(property).unwrap();
 
-        let returned_str_ptr = unsafe { zmq_sys::zmq_msg_gets(transmute(&self.msg), transmute(prop_cstr.as_ptr())) };
+        let returned_str_ptr = unsafe { zmq_ffi::zmq_msg_gets(transmute(&self.msg), transmute(prop_cstr.as_ptr())) };
         if returned_str_ptr.is_null() {
             None
         } else {
@@ -477,7 +477,7 @@ impl DerefMut for Message {
 impl Drop for Message {
     fn drop(&mut self) {
         loop {
-            let rc = unsafe { zmq_sys::zmq_msg_close(&mut self.msg) };
+            let rc = unsafe { zmq_ffi::zmq_msg_close(&mut self.msg) };
             if rc != 0 {
                 let e = Error::from_last_err();
                 if e.get_errno() == EINTR {
@@ -526,7 +526,7 @@ pub const ZMQ_GSSAPI: SecurityMechanism = 3;
 /// The function shall report whether a specified capability is available in the library
 pub fn has_capability(capability: &str) -> bool {
     let capability_cstr = ffi::CString::new(capability).unwrap();
-    let rc = unsafe { zmq_sys::zmq_has(capability_cstr.as_ptr()) };
+    let rc = unsafe { zmq_ffi::zmq_has(capability_cstr.as_ptr()) };
     rc == 1
 }
 
@@ -544,7 +544,7 @@ pub fn z85_encode(data: &[u8]) -> Result<String, Error> {
     let len = data.len() as i32 * 5 / 4 + 1;
     let mut dest: Vec<u8> = Vec::with_capacity(len as usize);
 
-    let rc = unsafe { zmq_sys::zmq_z85_encode(transmute(dest.as_mut_ptr()), data.as_ptr(), data.len()) };
+    let rc = unsafe { zmq_ffi::zmq_z85_encode(transmute(dest.as_mut_ptr()), data.as_ptr(), data.len()) };
     if rc.is_null() {
         Err(Error::from_last_err())
     } else {
@@ -567,7 +567,7 @@ pub fn z85_decode(encoded: &str) -> Result<Vec<u8>, Error> {
     let len = (encoded_cstr.as_bytes().len() as i32 * 4 / 5) as i32;
     let mut dest: Vec<u8> = Vec::with_capacity(len as usize);
 
-    let rc = unsafe { zmq_sys::zmq_z85_decode(dest.as_mut_ptr(), encoded_cstr.as_ptr()) };
+    let rc = unsafe { zmq_ffi::zmq_z85_decode(dest.as_mut_ptr(), encoded_cstr.as_ptr()) };
     if rc.is_null() {
         Err(Error::from_last_err())
     } else  {
@@ -590,7 +590,7 @@ pub fn gen_curve_keypair() -> Result<(String, String), Error> {
     let mut secret_key: Vec<u8> = Vec::with_capacity(41);
 
     let rc = unsafe {
-        zmq_sys::zmq_curve_keypair(
+        zmq_ffi::zmq_curve_keypair(
             transmute(public_key.as_mut_ptr()),
             transmute(secret_key.as_mut_ptr())
         )

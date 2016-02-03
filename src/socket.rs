@@ -6,7 +6,7 @@ use std::ffi;
 use libc::{ c_int, c_void, size_t, c_short, c_long, c_ushort };
 use super::{ Error, Message, SocketType };
 use ::std;
-use ::zmq_sys;
+use ::zmq_ffi;
 
 fn bytes_to_string(bytes: Vec<u8>) -> String {
     unsafe { ffi::CStr::from_ptr(transmute(bytes.as_ptr())).to_str().unwrap().to_string() }
@@ -26,7 +26,7 @@ macro_rules! getsockopt_template(
             let mut optval_len: size_t = std::mem::size_of::<$t>() as size_t;
             let optval_ptr = &mut optval as *mut $t;
 
-            let rc = unsafe { zmq_sys::zmq_getsockopt(self.socket, $opt as c_int, transmute(optval_ptr), &mut optval_len) };
+            let rc = unsafe { zmq_ffi::zmq_getsockopt(self.socket, $opt as c_int, transmute(optval_ptr), &mut optval_len) };
             if rc == -1 {
                 Err(Error::from_last_err())
             } else {
@@ -43,7 +43,7 @@ macro_rules! getsockopt_template(
             let optval_ptr = optval.as_mut_ptr();
 
             let rc = unsafe {
-                zmq_sys::zmq_getsockopt(self.socket, $opt as c_int,
+                zmq_ffi::zmq_getsockopt(self.socket, $opt as c_int,
                     transmute(optval_ptr), &mut optval_len)
             };
 
@@ -62,7 +62,7 @@ macro_rules! getsockopt_template(
             let mut optval_len: size_t = std::mem::size_of::<$t>() as size_t;
             let optval_ptr = &mut optval as *mut $t;
 
-            let rc = unsafe { zmq_sys::zmq_getsockopt(self.socket, $opt as c_int, transmute(optval_ptr), &mut optval_len) };
+            let rc = unsafe { zmq_ffi::zmq_getsockopt(self.socket, $opt as c_int, transmute(optval_ptr), &mut optval_len) };
             if rc == -1 {
                 Err(Error::from_last_err())
             } else {
@@ -79,7 +79,7 @@ macro_rules! getsockopt_template(
             let optval_ptr = optval.as_mut_ptr();
 
             let rc = unsafe {
-                zmq_sys::zmq_getsockopt(self.socket, $opt as c_int,
+                zmq_ffi::zmq_getsockopt(self.socket, $opt as c_int,
                     transmute(optval_ptr), &mut optval_len)
             };
 
@@ -100,7 +100,7 @@ macro_rules! setsockopt_nullptr_template(
             let optval_ptr: *const u8 = std::ptr::null();
 
             let rc = unsafe {
-                zmq_sys::zmq_setsockopt(self.socket, $opt as c_int,
+                zmq_ffi::zmq_setsockopt(self.socket, $opt as c_int,
                     transmute(optval_ptr), optval_len)
             };
 
@@ -120,7 +120,7 @@ macro_rules! setsockopt_template(
             let optval_len: size_t = std::mem::size_of::<$t>() as size_t;
             let optval_ptr = optval as *const $t;
 
-            let rc = unsafe { zmq_sys::zmq_setsockopt(self.socket, $opt as c_int, transmute(optval_ptr), optval_len) };
+            let rc = unsafe { zmq_ffi::zmq_setsockopt(self.socket, $opt as c_int, transmute(optval_ptr), optval_len) };
             if rc == -1 {
                 Err(Error::from_last_err())
             } else {
@@ -136,7 +136,7 @@ macro_rules! setsockopt_template(
             let optval_ptr: *const u8 = optval.as_ptr();
 
             let rc = unsafe {
-                zmq_sys::zmq_setsockopt(self.socket, $opt as c_int,
+                zmq_ffi::zmq_setsockopt(self.socket, $opt as c_int,
                     transmute(optval_ptr), optval_len)
             };
 
@@ -156,7 +156,7 @@ macro_rules! setsockopt_template(
             let optval_ptr: *const u8 = optval.as_ptr();
 
             let rc = unsafe {
-                zmq_sys::zmq_setsockopt(self.socket, $opt as c_int,
+                zmq_ffi::zmq_setsockopt(self.socket, $opt as c_int,
                     transmute(optval_ptr), optval_len)
             };
 
@@ -279,7 +279,7 @@ impl Socket {
 
     fn close_underly(&mut self) -> Result<(), Error> {
         loop {
-            let rc = unsafe { zmq_sys::zmq_close(self.socket) };
+            let rc = unsafe { zmq_ffi::zmq_close(self.socket) };
             if rc != 0 {
                 let e = Error::from_last_err();
                 if e.get_errno() == ::errno::EINTR {
@@ -302,7 +302,7 @@ impl Socket {
     /// The function binds the socket to a local endpoint and then accepts incoming connections on that endpoint.
     pub fn bind(&mut self, endpoint: &str) -> Result<(), Error> {
         let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
-        let rc = unsafe { zmq_sys::zmq_bind(self.socket, endpoint_cstr.as_ptr()) };
+        let rc = unsafe { zmq_ffi::zmq_bind(self.socket, endpoint_cstr.as_ptr()) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -317,7 +317,7 @@ impl Socket {
     /// The function connects the socket to an endpoint and then accepts incoming connections on that endpoint.
     pub fn connect(&mut self, endpoint: &str) -> Result<(), Error> {
         let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
-        let rc = unsafe { zmq_sys::zmq_connect(self.socket, endpoint_cstr.as_ptr()) };
+        let rc = unsafe { zmq_ffi::zmq_connect(self.socket, endpoint_cstr.as_ptr()) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -332,7 +332,7 @@ impl Socket {
     /// The function will unbind a socket specified by the socket argument from the endpoint specified by the endpoint argument.
     pub fn unbind(&mut self, endpoint: &str) -> Result<(), Error> {
         let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
-        let rc = unsafe { zmq_sys::zmq_unbind(self.socket, endpoint_cstr.as_ptr()) };
+        let rc = unsafe { zmq_ffi::zmq_unbind(self.socket, endpoint_cstr.as_ptr()) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -350,7 +350,7 @@ impl Socket {
     /// not yet physically transferred to the network depends on the value of the ZMQ_LINGER socket option for the socket.
     pub fn disconnect(&mut self, endpoint: &str) -> Result<(), Error> {
         let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
-        let rc = unsafe { zmq_sys::zmq_disconnect(self.socket, endpoint_cstr.as_ptr()) };
+        let rc = unsafe { zmq_ffi::zmq_disconnect(self.socket, endpoint_cstr.as_ptr()) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -362,7 +362,7 @@ impl Socket {
     ///
     /// Binding of `int zmq_msg_send (zmq_msg_t *msg, void *socket, int flags);`
     pub fn send_msg(&mut self, mut msg: Message, flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_msg_send(&mut msg.msg, self.socket, flags) };
+        let rc = unsafe { zmq_ffi::zmq_msg_send(&mut msg.msg, self.socket, flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -374,7 +374,7 @@ impl Socket {
     ///
     /// Binding of `int zmq_msg_recv (zmq_msg_t *msg, void *socket, int flags);`
     pub fn recv_into_msg(&mut self, msg: &mut Message, flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_msg_recv(&mut msg.msg, self.socket, flags) };
+        let rc = unsafe { zmq_ffi::zmq_msg_recv(&mut msg.msg, self.socket, flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -407,7 +407,7 @@ impl Socket {
     ///
     /// The message buffer is assumed to be constant-memory(static) and will therefore not be copied or deallocated in any way
     pub fn send_const_bytes(&mut self, data: &'static [u8], flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_send_const(self.socket, transmute(data.as_ptr()), data.len(), flags) };
+        let rc = unsafe { zmq_ffi::zmq_send_const(self.socket, transmute(data.as_ptr()), data.len(), flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -432,7 +432,7 @@ impl Socket {
     /// # Caution
     /// *Any bytes exceeding the length of buffer will be truncated.*
     pub fn recv_bytes_into_slice(&mut self, buffer: &mut [u8], flags: SocketFlag) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_recv(self.socket, transmute(buffer.as_mut_ptr()), buffer.len(), flags) };
+        let rc = unsafe { zmq_ffi::zmq_recv(self.socket, transmute(buffer.as_mut_ptr()), buffer.len(), flags) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -469,7 +469,7 @@ impl Socket {
         }
 
         let endpoint_cstr = ffi::CString::new(endpoint).unwrap();
-        let rc = unsafe { zmq_sys::zmq_socket_monitor(self.socket, endpoint_cstr.as_ptr(), event_mask) };
+        let rc = unsafe { zmq_ffi::zmq_socket_monitor(self.socket, endpoint_cstr.as_ptr(), event_mask) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -483,7 +483,7 @@ impl Socket {
     ///
     /// The function starts the built-in ØMQ proxy in the current application thread.
     pub fn run_proxy(frontend: &mut Socket, backend: &mut Socket) -> Result<(), Error> {
-        let rc = unsafe { zmq_sys::zmq_proxy(frontend.socket, backend.socket, std::ptr::null_mut()) };
+        let rc = unsafe { zmq_ffi::zmq_proxy(frontend.socket, backend.socket, std::ptr::null_mut()) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {
@@ -509,9 +509,9 @@ impl Socket {
 
         let rc = {
             if control.is_none() {
-                unsafe { zmq_sys::zmq_proxy(frontend.socket, backend.socket, capture_ptr) }
+                unsafe { zmq_ffi::zmq_proxy(frontend.socket, backend.socket, capture_ptr) }
             } else {
-                unsafe { zmq_sys::zmq_proxy_steerable(frontend.socket, backend.socket, capture_ptr, control.unwrap().socket) }
+                unsafe { zmq_ffi::zmq_proxy_steerable(frontend.socket, backend.socket, capture_ptr, control.unwrap().socket) }
             }
         };
         if rc == -1 {
@@ -533,7 +533,7 @@ impl Socket {
     ///
     /// Binding of `int zmq_poll (zmq_pollitem_t *items, int nitems, long timeout);`
     pub fn poll(items: &mut [PollItem], nitems: i32, timeout: i32) -> Result<i32, Error> {
-        let rc = unsafe { zmq_sys::zmq_poll(transmute(items.as_mut_ptr()), nitems as c_int, timeout as c_long) };
+        let rc = unsafe { zmq_ffi::zmq_poll(transmute(items.as_mut_ptr()), nitems as c_int, timeout as c_long) };
         if rc == -1 {
             Err(Error::from_last_err())
         } else {

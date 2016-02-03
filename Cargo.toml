@@ -8,7 +8,7 @@ repository = "https://github.com/Ginurx/zmq-rs"
 
 [dependencies]
 libc = "0.2.*"
-zmq-sys = { path = "zmq-sys" }
+zmq-ffi = { path = "zmq-ffi" }
 cfg-if = "0.1.0"
 
 [[example]]
