@@ -1,6 +1,5 @@
 #![crate_name = "version"]
-
-extern crate zmq;
+extern crate zmq_rs as zmq;
 
 fn main() {
     let (major, minor, patch) = zmq::version();

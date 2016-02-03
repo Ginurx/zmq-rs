@@ -1,5 +1,5 @@
 #![crate_name = "hwserver"]
-extern crate zmq;
+extern crate zmq_rs as zmq;
 
 use std::time::Duration;
 use std::thread::sleep;

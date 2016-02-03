@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate zmq;
+extern crate zmq_rs as zmq;
 
 #[test]
 fn version_test() {

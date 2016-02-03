@@ -1,5 +1,5 @@
 #![crate_name = "hwclient"]
-extern crate zmq;
+extern crate zmq_rs as zmq;
 
 fn main() {
     println!("Connecting to hello world server...");

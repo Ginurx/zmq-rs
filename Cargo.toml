@@ -1,6 +1,6 @@
 [package]
-name = "zmq"
-version = "0.1.3"
+name = "zmq-rs"
+version = "0.1.4"
 authors = ["Qin Zhuang <66458804@QQ.com>"]
 license = "MIT"
 description = "High-level bindings to the zeromq library"
@@ -8,7 +8,7 @@ repository = "https://github.com/Ginurx/zmq-rs"
 
 [dependencies]
 libc = "0.2.*"
-zmq-ffi = { path = "zmq-ffi" }
+zmq-ffi = { path = "zmq-ffi" ,version="0.1.1" }
 cfg-if = "0.1.0"
 
 [[example]]
