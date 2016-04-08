@@ -21,7 +21,7 @@ fn str_to_cstr_bytes(s: &str) -> Vec<u8> {
 macro_rules! getsockopt_template(
     // function name to declare, option name, query/return type
     ($name: ident, $opt: expr, $t: ty) => {
-        fn $name(&self) -> Result<$t, Error> {
+        pub fn $name(&self) -> Result<$t, Error> {
             let mut optval: $t = std::default::Default::default();
             let mut optval_len: size_t = std::mem::size_of::<$t>() as size_t;
             let optval_ptr = &mut optval as *mut $t;
@@ -36,7 +36,7 @@ macro_rules! getsockopt_template(
     };
     // function name to declare, option name, query type, query count, map queried value to return value, return type
     ($name: ident, $opt: expr, $t: ty, $n: expr, $rmap: expr, $r: ty) => {
-        fn $name(&self) -> Result<$r, Error> {
+        pub fn $name(&self) -> Result<$r, Error> {
             let mut optval: Vec<$t> = Vec::with_capacity($n);
 
             let mut optval_len: size_t = (optval.capacity() * std::mem::size_of::<$t>()) as size_t;
@@ -57,7 +57,7 @@ macro_rules! getsockopt_template(
     };
     // function name to declare, option name, query type, map queried value to return value, return type
     ($name: ident, $opt: expr, $t: ty, $rmap: expr, $r: ty) => {
-        fn $name(&self) -> Result<$r, Error> {
+        pub fn $name(&self) -> Result<$r, Error> {
             let mut optval: $t = std::default::Default::default();
             let mut optval_len: size_t = std::mem::size_of::<$t>() as size_t;
             let optval_ptr = &mut optval as *mut $t;
@@ -72,7 +72,7 @@ macro_rules! getsockopt_template(
     };
     // function name to declare, option name, query type, query count
     ($name: ident, $opt: expr, $t: ty, $n: expr) => {
-        fn $name(&self) -> Result<Vec<$t>, Error> {
+        pub fn $name(&self) -> Result<Vec<$t>, Error> {
             let mut optval: Vec<$t> = Vec::with_capacity($n);
 
             let mut optval_len: size_t = (optval.capacity() * std::mem::size_of::<$t>()) as size_t;
@@ -95,7 +95,7 @@ macro_rules! getsockopt_template(
 
 macro_rules! setsockopt_nullptr_template(
     ($name: ident, $opt: expr) => {
-        fn $name(&self) -> Result<(), Error> {
+        pub fn $name(&self) -> Result<(), Error> {
             let optval_len: size_t = 0;
             let optval_ptr: *const u8 = std::ptr::null();
 
@@ -116,7 +116,7 @@ macro_rules! setsockopt_nullptr_template(
 macro_rules! setsockopt_template(
     // function name to declare, option name, optval type
     ($name: ident, $opt: expr, $t: ty) => {
-        fn $name(&self, optval: &$t) -> Result<(), Error> {
+        pub fn $name(&self, optval: &$t) -> Result<(), Error> {
             let optval_len: size_t = std::mem::size_of::<$t>() as size_t;
             let optval_ptr = optval as *const $t;
 
@@ -131,7 +131,7 @@ macro_rules! setsockopt_template(
 
     // function name to declare, option name
     ($name: ident, $opt: expr) => {
-        fn $name(&self, optval: &[u8]) -> Result<(), Error> {
+        pub fn $name(&self, optval: &[u8]) -> Result<(), Error> {
             let optval_len: size_t = optval.len() as size_t;
             let optval_ptr: *const u8 = optval.as_ptr();
 
@@ -149,7 +149,7 @@ macro_rules! setsockopt_template(
     };
 
     ($name: ident, $opt: expr, $t: ty, $map: expr) => {
-        fn $name(&self, optval: $t) -> Result<(), Error> {
+        pub fn $name(&self, optval: $t) -> Result<(), Error> {
             let optval: Vec<u8> = $map(optval);
             let optval_len: size_t = optval.len() as size_t;
 

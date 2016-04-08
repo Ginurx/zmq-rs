@@ -1,6 +1,6 @@
 [package]
 name = "zmq-rs"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Qin Zhuang <66458804@QQ.com>"]
 license = "MIT"
 description = "A ZeroMQ library binding (Windows compatible) for ZMQ-4.1.4 "
