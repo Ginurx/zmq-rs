@@ -5,8 +5,8 @@ extern crate zmq_ffi;
 #[macro_use]
 extern crate cfg_if;
 
-mod socket;
-mod errno;
+pub mod socket;
+pub mod errno;
 pub use socket::Socket;
 pub use errno::*;
 
