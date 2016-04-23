@@ -5,9 +5,9 @@ extern crate zmq_ffi;
 #[macro_use]
 extern crate cfg_if;
 
-pub mod socket;
-pub mod errno;
-pub use socket::Socket;
+mod socket;
+mod errno;
+pub use socket::*;
 pub use errno::*;
 
 use std::ops::{ Deref, DerefMut };
