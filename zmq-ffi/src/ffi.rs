@@ -66,7 +66,7 @@ extern "C" {
      -> c_int;
     pub fn zmq_msg_init_data(msg: *mut zmq_msg_t,
                              data: *mut c_void, size: size_t,
-                             ffn: *mut zmq_free_fn,
+                             ffn: zmq_free_fn,
                              hint: *mut c_void)
      -> c_int;
     pub fn zmq_msg_send(msg: *mut zmq_msg_t, s: *mut c_void,
@@ -169,7 +169,7 @@ extern "C" {
     pub fn zmq_stopwatch_stop(watch_: *mut c_void)
      -> c_ulong;
     pub fn zmq_sleep(seconds_: c_int);
-    pub fn zmq_threadstart(func: *mut zmq_thread_fn,
+    pub fn zmq_threadstart(func: zmq_thread_fn,
                            arg: *mut c_void)
      -> *mut c_void;
     pub fn zmq_threadclose(thread: *mut c_void);
