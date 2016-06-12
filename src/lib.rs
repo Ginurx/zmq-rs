@@ -264,8 +264,7 @@ pub struct Message {
 }
 
 unsafe extern "C" fn zmq_free_fn(data: *mut c_void, hint: *mut c_void) {
-    let len = transmute(hint);
-    let slice = slice::from_raw_parts_mut(transmute::<*mut c_void, *mut u8>(data), len);
+    let slice = slice::from_raw_parts_mut(data as *mut u8, hint as usize);
     let _: Box<[u8]> = Box::from_raw(slice);
 }
 
@@ -314,12 +313,11 @@ impl Message {
     pub fn from_vec(vec: Vec<u8>) -> Result<Message, Error> {
         let len = vec.len() as size_t;
         let data = vec.into_boxed_slice();
-        let free_fn = unsafe { transmute(zmq_free_fn) };
 
         let mut msg = zmq_ffi::zmq_msg_t { unknown: [0; MSG_SIZE] };
         let rc = unsafe {
             zmq_ffi::zmq_msg_init_data(&mut msg, Box::into_raw(data) as *mut c_void, len,
-                free_fn, transmute(len))
+                zmq_free_fn, len as *mut _)
             };
         if rc == -1 {
             Err(Error::from_last_err())
